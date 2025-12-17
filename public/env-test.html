@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Environment Variable Test</title>
+  </head>
+  <body>
+    <h1>Environment Variable Test</h1>
+    <p>This page will display the environment variables passed to the build.</p>
+    <script>
+      // Since this is a static file, we need to inject the env vars during build
+      // This is just for testing purposes
+      console.log("Testing environment variables");
+      console.log(
+        "VITE_SUPABASE_URL:",
+        "https://zflehoeaadcganacwksb.supabase.co"
+      );
+      console.log(
+        "VITE_SUPABASE_ANON_KEY:",
+        "sb_publishable_OeB9jssHZmkC_AY6qY7-cg_USc4HIAq"
+      );
+
+      // Display on page
+      document.body.innerHTML += `
+      <h2>Environment Variables:</h2>
+      <p><strong>VITE_SUPABASE_URL:</strong> https://zflehoeaadcganacwksb.supabase.co</p>
+      <p><strong>VITE_SUPABASE_ANON_KEY:</strong> sb_publishable_OeB9jssHZmkC_AY6qY7-cg_USc4HIAq</p>
+      <p><strong>Note:</strong> This is a static test page. The actual app should read these from environment variables.</p>
+    `;
+    </script>
+  </body>
+</html>

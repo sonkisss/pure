@@ -1,0 +1,38 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.vscode": true,
+    "**/.git": true
+  },
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  
+  // 文档管理规则提醒
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.hg/store/**": true
+  },
+  
+  // 文件模板提示
+  "files.associations": {
+    "*.md": "markdown"
+  },
+  
+  // 文档规则说明（仅供VSCode显示）
+  "comments": {
+    "lineComment": "⚠️ 重要提醒：所有开发记录请写入 CHANGELOG.md，不要创建新的.md文件！详见 .project-rules.md"
+  }
+}
