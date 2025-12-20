@@ -76,6 +76,20 @@
             ¥{{ formatPrice(profit.total_profit) }}
           </div>
         </div>
+        <div class="stat-divider" />
+        <div class="stat-item">
+          <div class="stat-label">已挂账</div>
+          <div class="stat-value text-green-600">
+            ¥{{ formatPrice(creditStats.credited || 0) }}
+          </div>
+        </div>
+        <div class="stat-divider" />
+        <div class="stat-item">
+          <div class="stat-label">未挂账</div>
+          <div class="stat-value text-red-500">
+            ¥{{ formatPrice(creditStats.uncredited || 0) }}
+          </div>
+        </div>
       </div>
     </el-card>
 
@@ -95,6 +109,16 @@
               <el-icon><Delete /></el-icon>
               批量删除 ({{ selectedDetails.length }})
             </el-button>
+            <el-button
+              v-if="selectedDetails.length > 0"
+              type="warning"
+              size="small"
+              :loading="batchCreditLoading"
+              @click="handleBatchCredit"
+            >
+              <el-icon><Select /></el-icon>
+              批量挂账
+            </el-button>
             <el-button type="primary" size="small" @click="handleAddDetail">
               <el-icon><Plus /></el-icon>
               添加明细
@@ -108,13 +132,19 @@
       </template>
 
       <el-table
-        :data="contractDetails"
+        :data="displayedContractDetails"
         border
         stripe
+        show-summary
+        :summary-method="calcDetailsSummary"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column label="序号" width="60" align="center">
+          <template #default="{ row, $index }">
+            {{ row.__originalIndex ?? $index + 1 }}
+          </template>
+        </el-table-column>
         <el-table-column
           prop="product_name"
           label="产品名称"
@@ -143,7 +173,7 @@
         >
           <template #default="{ row }">
             <span class="text-green-600 font-semibold">
-              ¥{{ formatPrice(row.purchase_price) }}
+              {{ formatPrice(row.purchase_price) }}
             </span>
           </template>
         </el-table-column>
@@ -155,7 +185,7 @@
         >
           <template #default="{ row }">
             <span class="text-red-500 font-semibold">
-              ¥{{ formatPrice(row.purchase_amount) }}
+              {{ formatPrice(row.purchase_amount) }}
             </span>
           </template>
         </el-table-column>
@@ -167,7 +197,7 @@
         >
           <template #default="{ row }">
             <span class="text-blue-600 font-semibold">
-              ¥{{ formatPrice(row.sale_price) }}
+              {{ formatPrice(row.sale_price) }}
             </span>
           </template>
         </el-table-column>
@@ -179,8 +209,22 @@
         >
           <template #default="{ row }">
             <span class="text-green-600 font-semibold">
-              ¥{{ formatPrice(row.sale_amount) }}
+              {{ formatPrice(row.sale_amount) }}
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="is_credited"
+          label="挂账"
+          width="70"
+          align="center"
+        >
+          <template #default="{ row }">
+            <span
+              class="credit-dot"
+              :class="row.is_credited ? 'credit-dot--yes' : 'credit-dot--no'"
+              :title="row.is_credited ? '已挂账' : '未挂账'"
+            ></span>
           </template>
         </el-table-column>
         <el-table-column
@@ -192,7 +236,7 @@
         />
         <el-table-column
           prop="includes_tax"
-          label="含税类型"
+          label="含税"
           width="80"
           align="center"
         >
@@ -417,6 +461,14 @@
             </el-form-item>
           </el-col>
         </el-row>
+
+        <el-form-item label="挂账状态">
+          <el-switch
+            v-model="detailFormData.is_credited"
+            active-text="已挂账"
+            inactive-text="未挂账"
+          />
+        </el-form-item>
 
         <el-form-item label="供应商" prop="supplier">
           <el-input
@@ -708,6 +760,7 @@ import {
   ElMessageBox,
   type FormInstance,
   type FormRules,
+  type SummaryMethodProps,
   type UploadFile
 } from "element-plus";
 import {
@@ -715,7 +768,8 @@ import {
   Plus,
   Upload,
   Download,
-  Delete
+  Delete,
+  Select
 } from "@element-plus/icons-vue";
 import * as XLSX from "xlsx";
 import {
@@ -738,6 +792,8 @@ import {
 } from "@/api/business";
 import { getPayerList } from "@/api/expense";
 
+type ContractDetailWithIndex = ContractDetail & { __originalIndex?: number };
+
 const route = useRoute();
 const router = useRouter();
 
@@ -745,16 +801,26 @@ const router = useRouter();
 const loading = ref(false);
 const submitLoading = ref(false);
 const batchDeleteLoading = ref(false);
+const batchCreditLoading = ref(false);
 const detailDialogVisible = ref(false);
 const expenseDialogVisible = ref(false);
 const categoryDialogVisible = ref(false);
 const categoryFormRef = ref<FormInstance>();
 
 // 批量选择相关
-const selectedDetails = ref<ContractDetail[]>([]);
+const selectedDetails = ref<ContractDetailWithIndex[]>([]);
 
 const contract = ref<Contract>({} as Contract);
-const contractDetails = ref<ContractDetail[]>([]);
+const contractDetails = ref<ContractDetailWithIndex[]>([]);
+// 展示层：已挂账在前，未挂账在后，保持各自原有顺序
+const displayedContractDetails = computed(() => {
+  const credited: ContractDetailWithIndex[] = [];
+  const uncredited: ContractDetailWithIndex[] = [];
+  contractDetails.value.forEach(detail => {
+    (detail.is_credited ? credited : uncredited).push(detail);
+  });
+  return [...credited, ...uncredited];
+});
 const expenses = ref<Expense[]>([]);
 const categories = ref<ExpenseCategory[]>([]);
 const payers = ref<any[]>([]);
@@ -793,6 +859,21 @@ const profit = computed(() => {
     total_expense_amount: totalExpenseAmount,
     total_profit: totalProfit
   };
+});
+
+// 挂账统计：区分已挂账与未挂账的销售金额
+const creditStats = computed(() => {
+  let credited = 0;
+  let uncredited = 0;
+  contractDetails.value.forEach(item => {
+    const amount = item.sale_amount || 0;
+    if (item.is_credited) {
+      credited += amount;
+    } else {
+      uncredited += amount;
+    }
+  });
+  return { credited, uncredited };
 });
 
 // 计算预估缴税
@@ -910,6 +991,7 @@ const detailFormData = reactive({
   quantity: 1,
   purchase_price: 0,
   sale_price: 0,
+  is_credited: false,
   supplier: "",
   includes_tax: 1 as 0 | 1 | 2,
   remark: ""
@@ -1039,7 +1121,13 @@ const loadContractDetail = async () => {
     // 🚀 性能优化5: 使用 Object.assign 避免响应式性能损耗
     const responseData = (response as any).data || response;
     Object.assign(contract.value, responseData.contract);
-    contractDetails.value = responseData.details;
+    contractDetails.value = (responseData.details || []).map(
+      (item: any, index: number) => ({
+        ...item,
+        is_credited: Boolean(item.is_credited),
+        __originalIndex: index + 1
+      })
+    );
     expenses.value = responseData.expenses;
 
     // 设置费用表单的默认公司信息
@@ -1546,8 +1634,31 @@ const handleDeleteDetail = async (detail: ContractDetail) => {
 };
 
 // 批量选择变化处理
-const handleSelectionChange = (selection: ContractDetail[]) => {
+const handleSelectionChange = (selection: ContractDetailWithIndex[]) => {
   selectedDetails.value = selection;
+};
+
+// 合同明细表格合计（进货金额/销售金额）
+const calcDetailsSummary = ({ columns, data }: SummaryMethodProps) => {
+  const totalPurchaseAmount = data.reduce(
+    (sum, item) => sum + (item.purchase_amount || 0),
+    0
+  );
+  const totalSaleAmount = data.reduce(
+    (sum, item) => sum + (item.sale_amount || 0),
+    0
+  );
+
+  return columns.map((column, index) => {
+    if (index === 0) return "合计";
+    if (column.property === "purchase_amount") {
+      return formatPrice(totalPurchaseAmount);
+    }
+    if (column.property === "sale_amount") {
+      return formatPrice(totalSaleAmount);
+    }
+    return "";
+  });
 };
 
 // 批量删除处理
@@ -1625,6 +1736,58 @@ const handleBatchDelete = async () => {
   }
 };
 
+// 批量挂账
+const handleBatchCredit = async () => {
+  if (selectedDetails.value.length === 0) {
+    ElMessage.warning("请选择要挂账的明细");
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确认将选中的 ${selectedDetails.value.length} 条明细标记为已挂账？`,
+      "批量挂账确认",
+      {
+        confirmButtonText: "确认挂账",
+        cancelButtonText: "取消",
+        type: "warning",
+        draggable: true
+      }
+    );
+
+    batchCreditLoading.value = true;
+
+    const updatePromises = selectedDetails.value.map(detail =>
+      updateContractDetail({
+        ...detail,
+        is_credited: true
+      } as any)
+    );
+
+    const results = await Promise.allSettled(updatePromises);
+    const successCount = results.filter(r => r.status === "fulfilled").length;
+    const failCount = results.length - successCount;
+
+    if (successCount > 0) {
+      await loadContractDetail();
+      ElMessage.success(
+        `批量挂账完成：成功 ${successCount} 条${
+          failCount > 0 ? `，失败 ${failCount} 条` : ""
+        }`
+      );
+    } else {
+      ElMessage.error("批量挂账失败，请稍后重试");
+    }
+  } catch (error: any) {
+    if (error !== "cancel") {
+      console.error("批量挂账失败:", error);
+      ElMessage.error("批量挂账失败");
+    }
+  } finally {
+    batchCreditLoading.value = false;
+  }
+};
+
 const handleDetailSubmit = async () => {
   if (!detailFormRef.value) return;
 
@@ -1636,6 +1799,7 @@ const handleDetailSubmit = async () => {
       ...detailFormData,
       purchase_amount: detailFormData.quantity * detailFormData.purchase_price,
       sale_amount: detailFormData.quantity * detailFormData.sale_price,
+      is_credited: detailFormData.is_credited,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -1812,6 +1976,7 @@ const resetDetailForm = () => {
     quantity: 1,
     purchase_price: 0,
     sale_price: 0,
+    is_credited: false,
     supplier: "",
     includes_tax: 1,
     remark: ""
@@ -2007,5 +2172,20 @@ onMounted(async () => {
   width: 1px;
   height: 36px;
   background-color: #dcdfe6;
+}
+
+.credit-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.credit-dot--yes {
+  background-color: #22c55e;
+}
+
+.credit-dot--no {
+  background-color: #ef4444;
 }
 </style>

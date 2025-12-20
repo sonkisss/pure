@@ -585,14 +585,15 @@ export class InvoicesSupabaseRepository {
     options?: { inline?: boolean; fileName?: string }
   ): Promise<{ data: { publicUrl: string; signedUrl: string } | null; error: any }> {
     const fullPath = `invoices/${filePath}`;
-    const publicUrl = getPublicFileUrl(fullPath);
     // 私有 Bucket 需要签名 URL，生成一个可用的临时访问地址（默认 7 天有效）
-    const signedUrl = await getSignedFileUrl(fullPath, 7 * 24 * 3600, {
-      inline: options?.inline,
-      contentType: "application/pdf",
+    const signedUrlRaw = await getSignedFileUrl(fullPath, 7 * 24 * 3600, {
+      inline: options?.inline ?? true,
       fileName: options?.fileName
     });
-    return { data: { publicUrl, signedUrl: signedUrl || publicUrl }, error: null };
+    if (!signedUrlRaw) {
+      return { data: null, error: new Error("签名URL生成失败") };
+    }
+    return { data: { publicUrl: "", signedUrl: signedUrlRaw }, error: null };
   }
 
   // 上传打款凭证文件

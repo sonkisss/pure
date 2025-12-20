@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from "vue";
+import { ref, onMounted, computed, nextTick, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import {
   getCustomerStatistics,
@@ -24,6 +24,7 @@ import {
 import { getExpenseStatistics } from "@/api/expense";
 import { ElMessage } from "element-plus";
 import echarts from "@/plugins/echarts";
+import type { EChartsType } from "echarts/core";
 import {
   Wallet,
   OfficeBuilding,
@@ -66,6 +67,9 @@ const invoiceStats = ref<CompanyStats[]>([]);
 const purchaseInvoiceStats = ref<CompanyStats[]>([]);
 const companyProfitStats = ref<CompanyProfitStats[]>([]);
 const salesChartRef = ref<HTMLElement | null>(null);
+let salesChartInstance: EChartsType | null = null;
+let resizeListenerBound = false;
+const resizeHandler = () => salesChartInstance?.resize();
 const currentMonth = ref(new Date().getMonth() + 1);
 
 // 顶部统计卡片数据
@@ -113,8 +117,11 @@ const topStats = computed(() => [
 ]);
 
 const initSalesChart = () => {
-  if (salesChartRef.value) {
-    const myChart = echarts.init(salesChartRef.value);
+  const chartEl = salesChartRef.value;
+  if (chartEl) {
+    // 复用已存在的实例，避免重复初始化报错
+    salesChartInstance =
+      echarts.getInstanceByDom(chartEl) ?? echarts.init(chartEl);
 
     // Define colors for specific companies or default colors
     const companyColors: Record<string, string> = {
@@ -205,8 +212,7 @@ const initSalesChart = () => {
         top: "10%",
         left: "2%", // Reduced left margin to balance
         right: "5%", // Increased right margin further to avoid scrollbar trigger
-        bottom: "3%",
-        containLabel: true
+        bottom: "3%"
       },
       xAxis: {
         type: "category",
@@ -229,9 +235,12 @@ const initSalesChart = () => {
       },
       series: seriesData
     };
-    myChart.setOption(option);
+    salesChartInstance.setOption(option);
 
-    window.addEventListener("resize", () => myChart.resize());
+    if (!resizeListenerBound) {
+      window.addEventListener("resize", resizeHandler);
+      resizeListenerBound = true;
+    }
   }
 };
 
@@ -449,6 +458,17 @@ onMounted(() => {
   nextTick(() => {
     setTimeout(initSalesChart, 500);
   });
+});
+
+onBeforeUnmount(() => {
+  if (resizeListenerBound) {
+    window.removeEventListener("resize", resizeHandler);
+    resizeListenerBound = false;
+  }
+  if (salesChartInstance) {
+    salesChartInstance.dispose();
+    salesChartInstance = null;
+  }
 });
 </script>
 

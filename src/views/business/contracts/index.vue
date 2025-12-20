@@ -49,6 +49,15 @@
         <el-divider direction="vertical" />
         <div class="stat-item">
           <div class="stat-wrapper">
+            <div class="stat-number">
+              ¥{{ formatMoney(statistics.total_uncredited_amount || 0) }}
+            </div>
+            <div class="stat-label">未挂账金额</div>
+          </div>
+        </div>
+        <el-divider direction="vertical" />
+        <div class="stat-item">
+          <div class="stat-wrapper">
             <div class="stat-number">{{ statistics.contract_count }}</div>
             <div class="stat-label">{{ currentYear }}年合同数</div>
           </div>
@@ -369,8 +378,8 @@
       </template>
     </el-dialog>
 
-    <!-- 轻量级图片预览组件 -->
-    <LightImagePreview
+    <!-- 图片预览组件（与供应商详情页保持一致） -->
+    <ImagePreview
       v-model="imagePreviewVisible"
       :images="previewImages"
       :initial-index="currentImageIndex"
@@ -419,7 +428,8 @@ import {
   type ContractAttachment
 } from "@/api/business";
 import { formatMoney } from "@/utils/format";
-import LightImagePreview from "@/components/LightImagePreview/index.vue";
+import ImagePreview from "@/components/ImagePreview";
+import { getSignedFileUrl, extractOssObjectPath } from "@/services/storage";
 
 const route = useRoute();
 const router = useRouter();
@@ -473,6 +483,7 @@ const contractList = ref<Contract[]>([]);
 const statistics = ref<ContractStatistics>({
   total_sales: 0,
   total_profit: 0,
+  total_uncredited_amount: 0,
   contract_count: 0,
   year: new Date().getFullYear()
 });
@@ -1180,7 +1191,37 @@ const getAttachmentStats = async (contractId: number) => {
   }
 };
 
-// 直接预览附件
+const fetchAsObjectUrl = async (
+  url: string,
+  fileType?: string
+): Promise<string> => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`获取文件失败: ${response.status}`);
+  const blob = await response.blob();
+  // 为兼容部分浏览器插件干扰内嵌 PDF/图片，统一生成 blob URL
+  return URL.createObjectURL(
+    fileType ? new Blob([blob], { type: fileType }) : blob
+  );
+};
+
+// 确保 OSS 附件使用签名链接（适配私有桶和自定义域名）
+const ensureSignedAttachmentUrl = async (att: ContractAttachment) => {
+  const cleanUrl = att.file_url.split("?")[0];
+  const objectPath = extractOssObjectPath(cleanUrl);
+  if (!objectPath) throw new Error("附件路径无效");
+
+  const fileName = att.file_name || cleanUrl.split("/").pop() || "file";
+  const signed = await getSignedFileUrl(objectPath, 3600, {
+    inline: true,
+    fileName
+  });
+  if (!signed) {
+    throw new Error("附件签名生成失败");
+  }
+  return signed;
+};
+
+// 直接预览附件（为私有 OSS 场景提供 blob URL，规避浏览器插件的 content_script 干扰）
 const handlePreviewAttachment = async (
   contractId: number,
   fileType: string
@@ -1217,25 +1258,31 @@ const handlePreviewAttachment = async (
       return;
     }
 
-    // 根据文件类型进行预览
     if (fileType === "image") {
-      // 预览图片 - 使用内部图片预览组件
-      const imageUrls = attachmentsToPreview.map(
-        (att: ContractAttachment) => att.file_url
+      // 预览图片 - 转为 blob URL，避免 CSP/插件拦截
+      const imageUrls = await Promise.all(
+        attachmentsToPreview.map(async (att: ContractAttachment) => {
+          return await fetchAsObjectUrl(att.file_url, att.file_type);
+        })
       );
       previewImages.value = imageUrls;
       currentImageIndex.value = 0;
       imagePreviewVisible.value = true;
-    } else if (fileType === "pdf") {
-      // PDF文件在新窗口打开 - 直接打开第一个
-      window.open(attachmentsToPreview[0].file_url, "_blank");
-    } else {
-      // 其他文件类型 - 直接在新窗口打开第一个
-      window.open(attachmentsToPreview[0].file_url, "_blank");
+      return;
+    }
+
+    // PDF 和其它文件：使用签名 URL，避免私有桶 AccessDenied/弹窗拦截
+    const target = attachmentsToPreview[0];
+    try {
+      const signedUrl = await ensureSignedAttachmentUrl(target);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.warn("签名预览失败:", err);
+      throw err;
     }
   } catch (error) {
     console.error("预览附件失败:", error);
-    ElMessage.error("预览附件失败");
+    ElMessage.error("预览失败，请重新上传该附件后重试");
   }
 };
 

@@ -1,5 +1,5 @@
 import { supabase } from "@/services/supabase";
-import { getPublicFileUrl } from "@/services/storage";
+import { getPublicFileUrl, deleteFileFromSupabase } from "@/services/storage";
 import type {
   Customer,
   CustomerListResult,
@@ -28,7 +28,18 @@ const extractFilePathFromUrl = (
     // 匹配 Supabase URL 模式并提取路径部分
     const regex = /\/storage\/v1\/object\/public\/[^\/]+\/(.+)/;
     const match = url.match(regex);
-    return match ? match[1] : null;
+    if (match) return match[1];
+
+    // 兼容 OSS 公共链接
+    if (url.startsWith("http") && url.includes("aliyuncs.com")) {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname.startsWith("/")
+        ? urlObj.pathname.slice(1)
+        : urlObj.pathname;
+      return path || null;
+    }
+
+    return url;
   } catch (error) {
     console.warn("解析文件URL失败:", error);
     return url; // 如果解析失败，返回原始URL
@@ -222,6 +233,46 @@ const deleteCustomerSupabase = async (id: number): Promise<OperationResult> => {
   if (!supabase) return { success: false, message: "no client" };
 
   try {
+    // 0. 删除挂账记录关联的PDF文件（如有）
+    const creditFiles = await supabase
+      .from("customer_credit_records")
+      .select("invoice_url")
+      .eq("customer_id", id);
+    if (creditFiles.error) {
+      console.warn("获取客户挂账文件失败:", creditFiles.error);
+    } else if (creditFiles.data && creditFiles.data.length > 0) {
+      for (const record of creditFiles.data) {
+        if (!record.invoice_url) continue;
+        let filePath: string | null = null;
+        try {
+          if (
+            typeof record.invoice_url === "string" &&
+            record.invoice_url.trim().startsWith("{")
+          ) {
+            const fileInfo = JSON.parse(record.invoice_url);
+            filePath =
+              fileInfo.filePath ||
+              extractFilePathFromUrl(fileInfo.fileUrl) ||
+              null;
+          } else {
+            filePath = extractFilePathFromUrl(record.invoice_url);
+          }
+        } catch (error) {
+          filePath = extractFilePathFromUrl(record.invoice_url);
+        }
+
+        if (filePath) {
+          const deleteResult = await deleteFileFromSupabase(filePath);
+          if (!deleteResult.success) {
+            return {
+              success: false,
+              message: deleteResult.error || "删除挂账文件失败"
+            };
+          }
+        }
+      }
+    }
+
     // 1. 删除所有付款记录
     const { error: deletePaymentsError } = await supabase
       .from("customer_payments")
@@ -735,13 +786,45 @@ const deleteCreditRecordSupabase = async (
   // 获取要删除的挂账记录
   const credit = await supabase
     .from("customer_credit_records")
-    .select("customer_id, amount")
+    .select("customer_id, amount, invoice_url")
     .eq("id", id)
     .single();
   if (credit.error) return { success: false, message: credit.error.message };
 
   const amt = Number(credit.data?.amount ?? 0);
   const customerId = credit.data?.customer_id;
+
+  // 删除对应的OSS文件（如有）
+  let filePath: string | null = null;
+  if (credit.data?.invoice_url) {
+    try {
+      if (
+        typeof credit.data.invoice_url === "string" &&
+        credit.data.invoice_url.trim().startsWith("{")
+      ) {
+        const fileInfo = JSON.parse(credit.data.invoice_url);
+        filePath =
+          fileInfo.filePath ||
+          extractFilePathFromUrl(fileInfo.fileUrl) ||
+          null;
+      } else {
+        filePath = extractFilePathFromUrl(credit.data.invoice_url);
+      }
+    } catch (error) {
+      filePath = extractFilePathFromUrl(credit.data.invoice_url);
+    }
+  }
+
+  if (filePath) {
+    const deleteResult = await deleteFileFromSupabase(filePath);
+    if (!deleteResult.success) {
+      console.warn("删除挂账PDF文件失败:", deleteResult.error);
+      return {
+        success: false,
+        message: deleteResult.error || "删除挂账PDF文件失败"
+      };
+    }
+  }
 
   // 删除挂账记录
   const del = await supabase

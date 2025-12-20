@@ -1,6 +1,7 @@
 import { getPluginsList } from "./build/plugins";
 import { include, exclude } from "./build/optimize";
 import { type UserConfigExport, type ConfigEnv, loadEnv } from "vite";
+import type { Plugin } from "vite";
 import {
   root,
   alias,
@@ -10,8 +11,40 @@ import {
 } from "./build/utils";
 
 export default ({ mode }: ConfigEnv): UserConfigExport => {
-  const { VITE_CDN, VITE_PORT, VITE_COMPRESSION, VITE_PUBLIC_PATH } =
+  const {
+    VITE_CDN,
+    VITE_PORT,
+    VITE_HOST,
+    VITE_COMPRESSION,
+    VITE_PUBLIC_PATH
+  } =
     wrapperEnv(loadEnv(mode, root));
+
+  const plugins: Plugin[] = [...getPluginsList(VITE_CDN, VITE_COMPRESSION)];
+
+  if (mode === "production") {
+    const cspContent =
+      "default-src 'self'; " +
+      "script-src 'self' https://cdn.bootcdn.net 'unsafe-eval'; " +
+      "style-src 'self' 'unsafe-inline' https://cdn.bootcdn.net; " +
+      "img-src 'self' data: blob: http://8.140.31.58:* https://jctmy.xyz https://www.jctmy.xyz https://cdn.bootcdn.net https://*.supabase.co https://*.supabase.in https://*.aliyuncs.com http://oss.jctmy.xyz https://oss.jctmy.xyz; " +
+      "font-src 'self' data: https://cdn.bootcdn.net; " +
+      "connect-src 'self' http://8.140.31.58:* https://jctmy.xyz https://www.jctmy.xyz https://*.supabase.co https://*.supabase.in https://*.aliyuncs.com http://oss.jctmy.xyz https://oss.jctmy.xyz; " +
+      "object-src 'none'; base-uri 'self'; frame-src 'none'; form-action 'self';";
+
+    plugins.push({
+      name: "inject-csp-meta",
+      enforce: "post",
+      transformIndexHtml(html) {
+        // 在 build 产物注入 CSP，开发模式不生效，避免 HMR eval 警告
+        return html.replace(
+          "<head>",
+          `<head>\n    <meta http-equiv="Content-Security-Policy" content="${cspContent}" />`
+        );
+      }
+    });
+  }
+
   return {
     base: VITE_PUBLIC_PATH,
     root,
@@ -22,7 +55,7 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
     server: {
       // 端口号
       port: VITE_PORT,
-      host: "0.0.0.0",
+      host: VITE_HOST || "127.0.0.1",
       // 本地跨域代理 https://cn.vitejs.dev/config/server-options.html#server-proxy
       proxy: {},
       // 预热文件以提前转换和缓存结果，降低启动期间的初始页面加载时长并防止转换瀑布
@@ -30,7 +63,7 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
         clientFiles: ["./index.html", "./src/{views,components}/*"]
       }
     },
-    plugins: getPluginsList(VITE_CDN, VITE_COMPRESSION),
+    plugins,
     // https://cn.vitejs.dev/config/dep-optimization-options.html#dep-optimization-options
     optimizeDeps: {
       include,

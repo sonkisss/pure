@@ -1,10 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
-
-// 创建 Supabase 客户端
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import {
+  deleteFileFromSupabase,
+  getSignedFileUrl,
+  extractOssObjectPath
+} from "@/services/storage";
+import { supabase } from "@/services/supabase";
 
 // 类型定义
 export interface Company {
@@ -62,6 +61,7 @@ export interface ContractDetail {
   sale_amount: number;
   supplier?: string;
   includes_tax: 0 | 1 | 2;
+  is_credited?: boolean;
   remark?: string;
   created_at: string;
   updated_at: string;
@@ -101,6 +101,7 @@ export interface ContractStatistics {
   total_sales: number;
   total_profit: number;
   total_expense?: number;
+  total_uncredited_amount?: number;
   contract_count: number;
   year: number;
 }
@@ -139,6 +140,7 @@ export interface AllContractDetailsItem {
   purchase_amount: number;
   sale_price: number;
   sale_amount: number;
+  is_credited?: boolean;
   supplier?: string;
   includes_tax: 0 | 1 | 2;
   remark?: string;
@@ -542,6 +544,58 @@ export const deleteContractSupabase = async (id: number) => {
   try {
     console.log("🗑️ 开始删除合同，ID:", id);
 
+    // 删除合同附件文件与记录
+    const { data: attachments, error: attachmentsError } = await supabase
+      .from("contract_attachments")
+      .select("id,file_url")
+      .eq("contract_id", id);
+    if (attachmentsError) {
+      console.warn("获取合同附件失败:", attachmentsError);
+    } else if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        const rawUrl = attachment.file_url || "";
+        let objectPath = "";
+        if (rawUrl) {
+          try {
+            if (rawUrl.startsWith("http")) {
+              const urlObj = new URL(rawUrl);
+              objectPath = urlObj.pathname.startsWith("/")
+                ? urlObj.pathname.slice(1)
+                : urlObj.pathname;
+            } else {
+              objectPath = rawUrl;
+            }
+            if (objectPath.includes("?")) {
+              objectPath = objectPath.split("?")[0];
+            }
+          } catch {
+            objectPath = rawUrl.split("?")[0];
+          }
+        }
+
+        if (objectPath) {
+          const deleteResult = await deleteFileFromSupabase(objectPath);
+          if (!deleteResult.success) {
+            return {
+              success: false,
+              message: deleteResult.error || "删除合同附件文件失败"
+            };
+          }
+        }
+      }
+
+      const { error: deleteAttachmentRowsError } = await supabase
+        .from("contract_attachments")
+        .delete()
+        .eq("contract_id", id);
+      if (deleteAttachmentRowsError) {
+        return {
+          success: false,
+          message: deleteAttachmentRowsError.message
+        };
+      }
+    }
+
     // 首先检查是否存在相关的合同明细或费用
     const [detailsCount, expensesCount] = await Promise.all([
       supabase
@@ -615,7 +669,7 @@ export const getContractDetailSupabase = async (id: number) => {
       supabase
         .from("contract_details")
         .select(
-          "id, contract_id, product_name, spec_model, unit, quantity, purchase_price, purchase_amount, sale_price, sale_amount, supplier, includes_tax, remark, created_at, updated_at"
+          "id, contract_id, product_name, spec_model, unit, quantity, purchase_price, purchase_amount, sale_price, sale_amount, supplier, includes_tax, is_credited, remark, created_at, updated_at"
         )
         .eq("contract_id", id)
         .order("id", { ascending: true }),
@@ -710,6 +764,16 @@ export const getContractStatisticsSupabase = async (
   company_id?: number
 ): Promise<ContractStatistics> => {
   try {
+    const normalizeSaleAmount = (detail: any) => {
+      // 兼容历史数据：sale_amount 可能为 null，使用数量*卖价回填
+      const amount =
+        detail?.sale_amount ??
+        (detail?.quantity && detail?.sale_price
+          ? detail.quantity * detail.sale_price
+          : 0);
+      return Number(amount) || 0;
+    };
+
     console.log("📊 开始查询合同统计，年度:", year, "公司ID:", company_id);
 
     let query = supabase
@@ -722,7 +786,9 @@ export const getContractStatisticsSupabase = async (
         company_id,
         contract_details (
           purchase_amount,
-          includes_tax
+          sale_amount,
+          includes_tax,
+          is_credited
         ),
         expenses (
           amount
@@ -753,6 +819,7 @@ export const getContractStatisticsSupabase = async (
     let total_purchase = 0;
     let total_expense = 0;
     let total_estimated_tax = 0;
+    let total_uncredited_amount = 0;
 
     contracts.forEach((contract: any) => {
       // 累加销售额
@@ -768,6 +835,11 @@ export const getContractStatisticsSupabase = async (
           total_purchase += Number(detail.purchase_amount || 0);
           if (detail.includes_tax === 1) {
             contract_taxable_purchase += Number(detail.purchase_amount || 0);
+          }
+
+          // 统计未挂账金额（按销售金额计算）
+          if (!detail.is_credited) {
+            total_uncredited_amount += normalizeSaleAmount(detail);
           }
         });
       }
@@ -821,6 +893,7 @@ export const getContractStatisticsSupabase = async (
       total_sales,
       total_profit,
       total_expense, // 返回合同费用总和
+      total_uncredited_amount,
       contract_count: contracts.length,
       year: year || new Date().getFullYear()
     };
@@ -845,6 +918,15 @@ export const getBatchContractStatisticsSupabase = async (
   companyIds: number[]
 ) => {
   try {
+    const normalizeSaleAmount = (detail: any) => {
+      const amount =
+        detail?.sale_amount ??
+        (detail?.quantity && detail?.sale_price
+          ? detail.quantity * detail.sale_price
+          : 0);
+      return Number(amount) || 0;
+    };
+
     console.log(
       "📊 开始批量查询合同统计，年度:",
       year,
@@ -859,7 +941,10 @@ export const getBatchContractStatisticsSupabase = async (
         company_id, 
         contract_amount,
         contract_details (
-          purchase_amount
+          purchase_amount,
+          sale_amount,
+          includes_tax,
+          is_credited
         ),
         expenses (
           amount
@@ -882,6 +967,7 @@ export const getBatchContractStatisticsSupabase = async (
       statistics.set(companyId, {
         total_sales: 0,
         total_profit: 0,
+        total_uncredited_amount: 0,
         contract_count: 0,
         year
       });
@@ -896,6 +982,7 @@ export const getBatchContractStatisticsSupabase = async (
         // 计算该合同的进货成本和含税进货总额
         let contract_purchase = 0;
         let contract_taxable_purchase = 0;
+        let contract_uncredited = 0;
         if (
           contract.contract_details &&
           Array.isArray(contract.contract_details)
@@ -904,6 +991,10 @@ export const getBatchContractStatisticsSupabase = async (
             contract_purchase += Number(detail.purchase_amount || 0);
             if (detail.includes_tax === 1) {
               contract_taxable_purchase += Number(detail.purchase_amount || 0);
+            }
+
+            if (!detail.is_credited) {
+              contract_uncredited += normalizeSaleAmount(detail);
             }
           });
         }
@@ -955,6 +1046,9 @@ export const getBatchContractStatisticsSupabase = async (
           contract_expense -
           totalTax;
 
+        stats.total_uncredited_amount =
+          (stats.total_uncredited_amount || 0) + contract_uncredited;
+
         stats.contract_count += 1;
       }
     });
@@ -989,6 +1083,7 @@ export const addContractDetailSupabase = async (
         sale_amount: data.sale_amount,
         supplier: data.supplier,
         includes_tax: data.includes_tax,
+        is_credited: data.is_credited ?? false,
         remark: data.remark,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -1038,6 +1133,7 @@ export const updateContractDetailSupabase = async (data: ContractDetail) => {
         sale_amount: data.sale_amount,
         supplier: data.supplier,
         includes_tax: data.includes_tax,
+        is_credited: data.is_credited ?? false,
         remark: data.remark,
         updated_at: new Date().toISOString()
       })
@@ -1211,6 +1307,7 @@ export const getAllContractDetailsSupabase = async () => {
         purchase_amount,
         sale_price,
         sale_amount,
+        is_credited,
         supplier,
         includes_tax,
         remark,
@@ -1248,6 +1345,7 @@ export const getAllContractDetailsSupabase = async () => {
         purchase_amount: item.purchase_amount || 0,
         sale_price: item.sale_price || 0,
         sale_amount: item.sale_amount || 0,
+        is_credited: Boolean(item.is_credited),
         supplier: item.supplier || "",
         includes_tax: item.includes_tax || 0,
         remark: item.remark || "",
@@ -1461,10 +1559,42 @@ export const getContractAttachmentsSupabase = async (contractId: number) => {
       };
     }
 
+    const attachments = data || [];
+
+    // 为私有 OSS 桶生成临时可访问的签名 URL，避免图片/文件无法显示
+    const signedAttachments = await Promise.all(
+      attachments.map(async att => {
+        try {
+          const rawUrl = att.file_url || "";
+          if (!rawUrl) return att;
+
+          // 只对 OSS 链接签名，保留旧的 Supabase Storage 链接
+          if (!rawUrl.includes("aliyuncs.com") && !rawUrl.includes("oss.")) {
+            return att;
+          }
+
+          // 提取 object path，忽略签名和域名
+          const objectPath = extractOssObjectPath(rawUrl.split("?")[0]);
+          if (!objectPath) return att;
+
+          const signed = await getSignedFileUrl(objectPath, 3600, {
+            inline: true,
+            fileName: att.file_name,
+            contentType: att.file_type || "application/octet-stream"
+          });
+
+          return signed ? { ...att, file_url: signed } : att;
+        } catch (err) {
+          console.warn("生成合同附件签名URL失败:", err);
+          return att;
+        }
+      })
+    );
+
     return {
       success: true,
       message: "查询成功",
-      data: data || []
+      data: signedAttachments
     };
   } catch (error) {
     console.error("❌ 合同附件列表查询异常:", error);
@@ -1526,6 +1656,50 @@ export const addContractAttachmentSupabase = async (
 export const deleteContractAttachmentSupabase = async (id: number) => {
   try {
     console.log("🗑️ 开始删除合同附件，ID:", id);
+
+    const { data: attachment, error: fetchError } = await supabase
+      .from("contract_attachments")
+      .select("file_url")
+      .eq("id", id)
+      .single();
+    if (fetchError) {
+      console.error("❌ 合同附件获取失败:", fetchError);
+      return {
+        success: false,
+        message: `删除失败: ${fetchError.message}`
+      };
+    }
+
+    const rawUrl = attachment?.file_url || "";
+    let objectPath = "";
+    if (rawUrl) {
+      try {
+        if (rawUrl.startsWith("http")) {
+          const urlObj = new URL(rawUrl);
+          objectPath = urlObj.pathname.startsWith("/")
+            ? urlObj.pathname.slice(1)
+            : urlObj.pathname;
+        } else {
+          objectPath = rawUrl;
+        }
+        if (objectPath.includes("?")) {
+          objectPath = objectPath.split("?")[0];
+        }
+      } catch (err) {
+        objectPath = rawUrl.split("?")[0];
+      }
+    }
+
+    if (objectPath) {
+      const deleteFileResult = await deleteFileFromSupabase(objectPath);
+      if (!deleteFileResult.success) {
+        console.error("❌ 合同附件OSS文件删除失败:", deleteFileResult.error);
+        return {
+          success: false,
+          message: deleteFileResult.error || "附件文件删除失败"
+        };
+      }
+    }
 
     const { error } = await supabase
       .from("contract_attachments")

@@ -1,5 +1,11 @@
 import { supabase } from "@/services/supabase";
-import { uploadFileToSupabase, listFilesFromSupabase, getPublicFileUrl, deleteFileFromSupabase } from "@/services/storage";
+import {
+  uploadFileToSupabase,
+  listFilesFromSupabase,
+  getPublicFileUrl,
+  getSignedFileUrl,
+  deleteFileFromSupabase
+} from "@/services/storage";
 import type {
   Inquiry,
   InquiryItem,
@@ -33,6 +39,22 @@ export interface AllInquiryDetailsItem {
 }
 
 const bucket = "inquiry-attachments";
+
+const guessMimeByName = (name: string): string => {
+  const lower = (name || "").toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".xls")) return "application/vnd.ms-excel";
+  if (lower.endsWith(".xlsx"))
+    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (lower.endsWith(".doc")) return "application/msword";
+  if (lower.endsWith(".docx"))
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return "application/octet-stream";
+};
 
 const getInquiryListSupabase = async (data?: {
   page?: number;
@@ -161,13 +183,26 @@ const getInquiryDetailSupabase = async (
     };
   });
   const attachmentsList = await listFilesFromSupabase(bucket, String(id), 100);
-  const attachments: Attachment[] = (attachmentsList.data ?? []).map(
-    (o: any) => ({
-      id: o.id ?? 0,
-      fileName: o.name,
-      fileUrl: getPublicFileUrl(`${bucket}/${id}/${o.name}`),
-      fileType: o.metadata?.mimetype ?? "application/octet-stream",
-      uploadTime: o.created_at ?? new Date().toISOString()
+  const attachments: Attachment[] = await Promise.all(
+    (attachmentsList.data ?? []).map(async (o: any) => {
+      const objectPath = `${bucket}/${id}/${o.name}`;
+      const signed = await getSignedFileUrl(objectPath, 3600, {
+        inline: true,
+        fileName: o.name
+      });
+      if (!signed) {
+        throw new Error(`附件签名失败: ${objectPath}`);
+      }
+      return {
+        id: o.id ?? 0,
+        fileName: o.name,
+        fileUrl: signed,
+        fileType:
+          o.metadata?.mimetype ||
+          guessMimeByName(o.name) ||
+          "application/octet-stream",
+        uploadTime: o.created_at ?? new Date().toISOString()
+      };
     })
   );
   const matchedCount = items.filter(i => i.matchStatus === "matched").length;
@@ -212,6 +247,25 @@ const deleteInquirySupabase = async (id: number): Promise<OperationResult> => {
   if (!supabase) return { success: false, message: "no client" };
 
   try {
+    // 删除 OSS 中的附件文件
+    const attachmentsList = await listFilesFromSupabase(
+      bucket,
+      String(id),
+      1000
+    );
+    if (attachmentsList.data && attachmentsList.data.length > 0) {
+      for (const att of attachmentsList.data) {
+        const objectPath = `${bucket}/${id}/${att.name}`;
+        const deleteResult = await deleteFileFromSupabase(objectPath);
+        if (!deleteResult.success) {
+          return {
+            success: false,
+            message: deleteResult.error || "删除询价附件文件失败"
+          };
+        }
+      }
+    }
+
     // 1. 删除所有询价明细
     const { error: deleteItemsError } = await supabase
       .from("inquiry_items")
@@ -339,7 +393,9 @@ const deleteAttachmentSupabase = async (
     (o: any) => String(o.id ?? "") === String(attachmentId)
   );
   if (!target) return { success: false, message: "附件不存在" };
-  const result = await deleteFileFromSupabase(`${bucket}/${inquiryId}/${target.name}`);
+  const result = await deleteFileFromSupabase(
+    `${bucket}/${inquiryId}/${target.name}`
+  );
   if (!result.success) return { success: false, message: result.error || "删除失败" };
   return { success: true, message: "附件删除成功" };
 };

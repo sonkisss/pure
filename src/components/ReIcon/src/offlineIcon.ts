@@ -8,6 +8,7 @@ import EpDocument from "~icons/ep/document?raw";
 import EpMoney from "~icons/ep/money?raw";
 import EpUser from "~icons/ep/user?raw";
 import EpBox from "~icons/ep/box?raw";
+import EpGoods from "~icons/ep/goods?raw";
 
 // https://icon-sets.iconify.design/ri/?keyword=ri
 import RiSearchLine from "~icons/ri/search-line?raw";
@@ -20,6 +21,7 @@ const icons = [
   ["ep/money", EpMoney],
   ["ep/user", EpUser],
   ["ep/box", EpBox],
+  ["ep/goods", EpGoods],
   // Remix Icon: https://github.com/Remix-Design/RemixIcon
   ["ri/search-line", RiSearchLine],
   ["ri/information-line", RiInformationLine]

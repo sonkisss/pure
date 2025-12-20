@@ -109,6 +109,7 @@ export type Database = {
           contract_id: number;
           created_at: string | null;
           id: number;
+          is_credited: boolean | null;
           includes_tax: number | null;
           product_name: string;
           purchase_amount: number | null;
@@ -127,6 +128,7 @@ export type Database = {
           contract_id: number;
           created_at?: string | null;
           id?: number;
+          is_credited?: boolean | null;
           includes_tax?: number | null;
           product_name: string;
           purchase_amount?: number | null;
@@ -145,6 +147,7 @@ export type Database = {
           contract_id?: number;
           created_at?: string | null;
           id?: number;
+          is_credited?: boolean | null;
           includes_tax?: number | null;
           product_name?: string;
           purchase_amount?: number | null;

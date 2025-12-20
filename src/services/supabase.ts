@@ -23,6 +23,7 @@ let supabaseAdmin: SupabaseClient | undefined;
 // 创建普通的客户端（仅用于数据库操作）
 supabase = createClient(url, anonKey, {
   auth: {
+    storageKey: "pure-admin-auth-token",
     persistSession: false,
     autoRefreshToken: false
   }
@@ -38,6 +39,7 @@ if (
 ) {
   supabaseAdmin = createClient(url, serviceRoleKey, {
     auth: {
+      storageKey: "pure-admin-service-role",
       persistSession: false,
       autoRefreshToken: false
     }

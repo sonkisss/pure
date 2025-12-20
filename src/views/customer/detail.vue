@@ -20,7 +20,13 @@ import {
   type CreditRecord
 } from "@/api/customer";
 import { getAllCompanies, type Company } from "@/api/business";
-import { uploadFileToSupabase, getPublicFileUrl } from "@/services/storage";
+import {
+  uploadFileToSupabase,
+  getPublicFileUrl,
+  deleteFileFromSupabase,
+  getSignedFileUrl,
+  extractOssObjectPath
+} from "@/services/storage";
 import {
   ArrowLeft,
   Plus,
@@ -456,6 +462,11 @@ const isCreditEdit = ref(false);
 const currentCreditEditId = ref<number | null>(null);
 const creditFormRef = ref<FormInstance>();
 const pdfFileList = ref<UploadFile[]>([]);
+// 记录当前挂账记录已有的发票URL（用于编辑时保留/删除）
+const currentInvoiceUrl = ref<string | undefined>(undefined);
+// 记录原始发票URL（用于替换或删除时同步删除 OSS 文件）
+const previousInvoiceUrl = ref<string | undefined>(undefined);
+const removeExistingInvoice = ref(false);
 
 // 挂账表单数据
 const creditFormData = ref({
@@ -467,6 +478,52 @@ const creditFormData = ref({
 
 // 临时文件缓存，用于大文件预览
 const tempFileCache = ref<Map<string, File>>(new Map());
+
+// 从 invoiceUrl 推断展示名称
+const getInvoiceDisplayName = (invoiceUrl: string): string => {
+  if (!invoiceUrl) return "已上传发票";
+  try {
+    if (invoiceUrl.startsWith("{")) {
+      const info = JSON.parse(invoiceUrl);
+      if (info.name) return info.name;
+      if (info.filePath) return info.filePath.split("/").pop() || "已上传发票";
+      if (info.fileUrl) return info.fileUrl.split("/").pop() || "已上传发票";
+    }
+    if (invoiceUrl.startsWith("http")) {
+      const decoded = decodeURIComponent(invoiceUrl);
+      return decoded.split("/").pop() || "已上传发票";
+    }
+    return invoiceUrl.split("/").pop() || "已上传发票";
+  } catch {
+    return "已上传发票";
+  }
+};
+
+// 根据已有发票生成上传组件的默认文件列表
+const buildExistingFileList = (invoiceUrl?: string): UploadFile[] => {
+  if (!invoiceUrl) return [];
+  const name = getInvoiceDisplayName(invoiceUrl);
+  let previewUrl = "";
+  if (invoiceUrl.startsWith("{")) {
+    try {
+      const info = JSON.parse(invoiceUrl);
+      previewUrl = info.fileUrl || "";
+    } catch {
+      previewUrl = "";
+    }
+  } else if (invoiceUrl.startsWith("http")) {
+    previewUrl = invoiceUrl;
+  }
+  return [
+    {
+      name,
+      url: previewUrl,
+      status: "success",
+      uid: `existing-${Date.now()}`,
+      percentage: 100
+    }
+  ];
+};
 
 // 挂账表单验证规则
 const creditRules: FormRules = {
@@ -512,6 +569,9 @@ const handleAddCredit = () => {
   isCreditEdit.value = false;
   currentCreditEditId.value = null;
   pdfFileList.value = [];
+  currentInvoiceUrl.value = undefined;
+  previousInvoiceUrl.value = undefined;
+  removeExistingInvoice.value = false;
   creditFormData.value = {
     amount: null,
     creditDate: dayjs().format("YYYY-MM-DD"),
@@ -530,7 +590,10 @@ const handleEditCredit = (row: CreditRecord) => {
   creditDialogTitle.value = "编辑挂账";
   isCreditEdit.value = true;
   currentCreditEditId.value = row.id;
-  pdfFileList.value = [];
+  currentInvoiceUrl.value = row.invoiceUrl;
+  previousInvoiceUrl.value = row.invoiceUrl;
+  removeExistingInvoice.value = false;
+  pdfFileList.value = buildExistingFileList(row.invoiceUrl);
   creditFormData.value = {
     amount: row.amount,
     creditDate: row.creditDate,
@@ -557,7 +620,44 @@ const handlePdfChange = (file: UploadFile) => {
       creditFormData.value.pdfFile = null;
       return;
     }
+    // 选择新文件视为覆盖旧文件
     creditFormData.value.pdfFile = file.raw;
+    // 标记需要删除旧文件
+    removeExistingInvoice.value = Boolean(previousInvoiceUrl.value);
+    currentInvoiceUrl.value = undefined;
+    pdfFileList.value = [file];
+  }
+};
+
+// 删除/清空已选PDF
+const handlePdfRemove = () => {
+  creditFormData.value.pdfFile = null;
+  pdfFileList.value = [];
+  // 编辑模式下删除旧文件则提交时清空
+  removeExistingInvoice.value = isCreditEdit.value;
+  if (removeExistingInvoice.value) {
+    currentInvoiceUrl.value = undefined;
+  }
+};
+
+// 解析用于删除的文件路径（支持 JSON / URL / 纯路径）
+const extractFilePathForDelete = (invoiceUrl?: string): string | null => {
+  if (!invoiceUrl) return null;
+  try {
+    if (invoiceUrl.startsWith("{")) {
+      const info = JSON.parse(invoiceUrl);
+      if (info.filePath) return info.filePath;
+      if (info.fileUrl && typeof info.fileUrl === "string") {
+        const match = info.fileUrl.match(/^https?:\/\/[^/]+\/(.+)$/);
+        return match ? match[1] : info.fileUrl;
+      }
+    } else if (invoiceUrl.startsWith("http")) {
+      const match = invoiceUrl.match(/^https?:\/\/[^/]+\/(.+)$/);
+      return match ? match[1] : invoiceUrl;
+    }
+    return invoiceUrl;
+  } catch {
+    return null;
   }
 };
 
@@ -607,9 +707,23 @@ const handleCreditSubmit = async () => {
     const valid = await creditFormRef.value.validate();
     if (valid) {
       try {
-        let pdfBase64: string | undefined;
+        // 根据状态生成要提交的发票字段：
+        // 1) 有新文件则上传并返回JSON
+        // 2) 编辑且删除旧文件则传空字符串清空
+        // 3) 否则保留原有URL
+        let pdfBase64: string | undefined | null = currentInvoiceUrl.value;
         if (creditFormData.value.pdfFile) {
           pdfBase64 = await fileToBase64(creditFormData.value.pdfFile);
+        } else if (isCreditEdit.value && removeExistingInvoice.value) {
+          pdfBase64 = "";
+          // 删除 OSS 中的旧文件
+          const filePath = extractFilePathForDelete(previousInvoiceUrl.value);
+          if (filePath) {
+            const del = await deleteFileFromSupabase(filePath, "invoices");
+            if (!del.success) {
+              console.warn("删除 OSS 发票文件失败:", del.error);
+            }
+          }
         }
 
         let res;
@@ -631,7 +745,7 @@ const handleCreditSubmit = async () => {
             customerId: customerId.value,
             amount: creditFormData.value.amount,
             creditDate: creditFormData.value.creditDate,
-            invoicePdfBase64: pdfBase64,
+            invoicePdfBase64: pdfBase64 || undefined,
             remark: creditFormData.value.remark
           });
         }
@@ -732,7 +846,7 @@ const createPdfBlobUrl = (fileInfo: any): string | null => {
 };
 
 // 预览PDF发票
-const handlePreviewPdf = (invoiceUrl: string) => {
+const handlePreviewPdf = async (invoiceUrl: string) => {
   if (!invoiceUrl) {
     ElMessage.warning("暂无发票");
     return;
@@ -745,10 +859,29 @@ const handlePreviewPdf = (invoiceUrl: string) => {
 
       // 处理Supabase存储格式
       if (fileInfo.storageType === "supabase" && fileInfo.fileUrl) {
-        // 直接在新窗口打开Supabase存储的PDF文件
         window.open(fileInfo.fileUrl, "_blank");
         ElMessage.success("正在新窗口中打开PDF文件");
         return;
+      }
+
+      // 处理 OSS 存储格式（自定义域名/默认域名）
+      if (fileInfo.fileUrl && fileInfo.filePath) {
+        const objectPath = extractOssObjectPath(fileInfo.filePath);
+        const fileName =
+          fileInfo.name ||
+          fileInfo.filePath.split("/").pop() ||
+          "invoice.pdf";
+        if (objectPath) {
+          const signed = await getSignedFileUrl(objectPath, 3600, {
+            inline: true,
+            fileName
+          });
+          if (signed) {
+            window.open(signed, "_blank");
+            ElMessage.success("正在新窗口中打开PDF文件");
+            return;
+          }
+        }
       }
 
       // 兼容旧格式提示
@@ -784,7 +917,20 @@ const handlePreviewPdf = (invoiceUrl: string) => {
       `);
     }
   } else if (invoiceUrl.startsWith("http")) {
-    // 如果是URL，直接打开
+    // http 链接：如果是 OSS，重新签名后打开
+    const cleanUrl = invoiceUrl.split("?")[0];
+    const objectPath = extractOssObjectPath(cleanUrl);
+    const fileName = decodeURIComponent(cleanUrl.split("/").pop() || "invoice.pdf");
+    if (objectPath) {
+      const signed = await getSignedFileUrl(objectPath, 3600, {
+        inline: true,
+        fileName
+      });
+      if (signed) {
+        window.open(signed, "_blank");
+        return;
+      }
+    }
     window.open(invoiceUrl, "_blank");
   } else {
     ElMessage.warning("文件格式不支持，请重新上传PDF文件");
@@ -1151,6 +1297,7 @@ onMounted(() => {
                 v-model:file-list="pdfFileList"
                 :auto-upload="false"
                 :on-change="handlePdfChange"
+                :on-remove="handlePdfRemove"
                 :limit="1"
                 accept="application/pdf,.pdf"
                 drag

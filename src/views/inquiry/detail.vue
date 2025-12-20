@@ -35,19 +35,22 @@ import {
   Refresh,
   Upload,
   Delete,
-  Picture,
-  Document,
   Download,
   UploadFilled,
   MoreFilled,
   MagicStick,
   Money,
-  ZoomIn
+  ZoomIn,
+  Picture,
+  Document,
+  DocumentCopy,
+  Files
 } from "@element-plus/icons-vue";
 import * as XLSX from "xlsx";
 import { ExcelParser } from "@/utils/excelParser";
 import { formatMoney } from "@/utils/format";
 import ImagePreview from "@/components/ImagePreview";
+import { extractOssObjectPath, getSignedFileUrl } from "@/services/storage";
 
 defineOptions({
   name: "InquiryDetail"
@@ -905,19 +908,78 @@ const handleAttachmentUploadSubmit = async () => {
 };
 
 // 预览附件
-const handleViewAttachment = (attachment: Attachment) => {
-  if (attachment.fileType.startsWith("image/")) {
-    // 图片文件使用ImagePreview组件预览
-    previewImages.value = [attachment.fileUrl];
-    currentImageIndex.value = 0;
-    imagePreviewVisible.value = true;
-  } else if (attachment.fileType === "application/pdf") {
-    // PDF文件在新窗口打开
-    window.open(attachment.fileUrl, "_blank");
-    ElMessage.success("正在新窗口中打开PDF文件");
-  } else {
-    // 其他文件类型在新窗口打开
-    window.open(attachment.fileUrl, "_blank");
+const getAttachmentSignedUrl = async (attachment: Attachment) => {
+  const raw = attachment.fileUrl || "";
+  const clean = raw.split("?")[0];
+  const objectPath = extractOssObjectPath(clean);
+  if (!objectPath) {
+    throw new Error("附件路径无效");
+  }
+  const signed = await getSignedFileUrl(objectPath, 3600, {
+    inline: true,
+    fileName: attachment.fileName || "attachment"
+  });
+  if (!signed) {
+    throw new Error("附件签名生成失败");
+  }
+  return signed;
+};
+
+const resolveAttachmentType = (attachment: Attachment) => {
+  const type = attachment.fileType || "";
+  if (type && type !== "application/octet-stream") return type;
+  const url = (attachment.fileUrl || "").toLowerCase().split("?")[0];
+  const name = (attachment.fileName || "").toLowerCase();
+  const source = url || name;
+  if (source.endsWith(".png")) return "image/png";
+  if (source.endsWith(".jpg") || source.endsWith(".jpeg")) return "image/jpeg";
+  if (source.endsWith(".gif")) return "image/gif";
+  if (source.endsWith(".webp")) return "image/webp";
+  if (source.endsWith(".pdf")) return "application/pdf";
+  if (source.endsWith(".xls")) return "application/vnd.ms-excel";
+  if (source.endsWith(".xlsx"))
+    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  return "application/octet-stream";
+};
+
+const getAttachmentIcon = (fileType: string) => {
+  const t = fileType || "";
+  if (t.startsWith("image/")) return Picture;
+  if (t === "application/pdf") return Document;
+  if (
+    t.includes("excel") ||
+    t.includes("spreadsheet") ||
+    t.includes("sheet")
+  )
+    return DocumentCopy;
+  return Files;
+};
+
+const handleViewAttachment = async (attachment: Attachment) => {
+  const url = attachment.fileUrl;
+  if (!url) {
+    ElMessage.error("附件不可用，请重新上传");
+    return;
+  }
+
+  try {
+    const signedUrl = await getAttachmentSignedUrl(attachment);
+
+    const type = resolveAttachmentType(attachment);
+
+    if (type.startsWith("image/")) {
+      // 直接使用签名 URL，交由 ImagePreview 展示，支持工具栏/滚轮缩放
+      previewImages.value = [signedUrl];
+      currentImageIndex.value = 0;
+      imagePreviewVisible.value = true;
+      return;
+    }
+
+    const win = window.open(signedUrl, "_blank");
+    if (!win) throw new Error("无法打开附件窗口");
+  } catch (err) {
+    console.error("附件预览失败:", err);
+    ElMessage.error("附件预览失败，请重新上传后再试");
   }
 };
 
@@ -2193,58 +2255,24 @@ onMounted(() => {
             v-for="attachment in inquiry.attachments"
             :key="attachment.id"
             class="attachment-item"
+            role="button"
+            tabindex="0"
+            @click="handleViewAttachment(attachment)"
           >
             <div class="attachment-icon">
-              <div
-                v-if="attachment.fileType.startsWith('image/')"
-                class="attachment-thumbnail-wrapper"
-                @click="handleViewAttachment(attachment)"
-              >
-                <el-image
-                  :src="attachment.fileUrl"
-                  :alt="attachment.fileName"
-                  fit="cover"
-                  class="attachment-thumbnail"
-                  :z-index="1"
-                  lazy
+              <el-tooltip :content="attachment.fileType || '附件'">
+                <el-icon
+                  :size="36"
+                  color="#409EFF"
+                  class="cursor-pointer"
                 >
-                  <template #error>
-                    <div class="image-slot">
-                      <el-icon :size="32" color="#409EFF">
-                        <Picture />
-                      </el-icon>
-                    </div>
-                  </template>
-                  <template #placeholder>
-                    <div class="image-slot">
-                      <el-icon class="is-loading" :size="24"
-                        ><Loading
-                      /></el-icon>
-                    </div>
-                  </template>
-                </el-image>
-                <div class="thumbnail-overlay">
-                  <el-icon :size="16" color="#fff">
-                    <ZoomIn />
-                  </el-icon>
-                </div>
-              </div>
-              <div
-                v-else-if="attachment.fileType === 'application/pdf'"
-                class="pdf-icon-wrapper"
-                @click="handleViewAttachment(attachment)"
-              >
-                <el-icon :size="32" color="#E6A23C">
-                  <Document />
+                  <component
+                    :is="getAttachmentIcon(resolveAttachmentType(attachment))"
+                  />
                 </el-icon>
-                <div class="file-type-label">PDF</div>
-              </div>
-              <el-icon v-else :size="32" color="#67C23A">
-                <Document />
-              </el-icon>
+              </el-tooltip>
             </div>
             <div class="attachment-info">
-              <div class="attachment-name">{{ attachment.fileName }}</div>
               <div class="attachment-time">
                 {{ formatDateTime(attachment.uploadTime) }}
               </div>
@@ -2254,7 +2282,7 @@ onMounted(() => {
                 type="danger"
                 link
                 :icon="Delete"
-                @click="handleDeleteAttachment(attachment)"
+                @click.stop="handleDeleteAttachment(attachment)"
               >
                 删除
               </el-button>
@@ -2927,6 +2955,7 @@ onMounted(() => {
     border: 1px solid #e4e7ed;
     border-radius: 8px;
     transition: all 0.3s;
+    cursor: pointer;
 
     &:hover {
       border-color: #409eff;

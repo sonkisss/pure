@@ -1,4 +1,5 @@
 import { supabase } from "@/services/supabase";
+import { deleteFileFromSupabase } from "@/services/storage";
 import type {
   Expense,
   ExpenseCategory,
@@ -143,6 +144,69 @@ export const getExpenseListSupabase = async (data?: {
   }
 };
 
+const extractAttachmentValue = (value: unknown): string | null => {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    const candidate = (value as { fileUrl?: unknown; url?: unknown; path?: unknown })
+      .fileUrl ?? (value as { url?: unknown }).url ?? (value as { path?: unknown }).path;
+    if (typeof candidate === "string") return candidate;
+  }
+  return null;
+};
+
+const normalizeAttachments = (attachments: unknown): string[] => {
+  if (!attachments) return [];
+
+  let list: unknown = attachments;
+  if (typeof attachments === "string") {
+    const trimmed = attachments.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      try {
+        list = JSON.parse(trimmed);
+      } catch (error) {
+        console.warn("解析附件JSON失败:", error);
+        return [trimmed];
+      }
+    } else {
+      return [trimmed];
+    }
+  }
+
+  if (Array.isArray(list)) {
+    return list
+      .map(item => extractAttachmentValue(item))
+      .filter((value): value is string => Boolean(value));
+  }
+
+  const single = extractAttachmentValue(list);
+  return single ? [single] : [];
+};
+
+const normalizeOssObjectPath = (value: string): string | null => {
+  if (!value || value.startsWith("data:")) return null;
+
+  let path = value;
+  try {
+    if (value.startsWith("http")) {
+      const urlObj = new URL(value);
+      path = urlObj.pathname.startsWith("/")
+        ? urlObj.pathname.slice(1)
+        : urlObj.pathname;
+    }
+  } catch (error) {
+    console.warn("解析附件URL失败:", error);
+    path = value;
+  }
+
+  if (path.includes("?")) {
+    path = path.split("?")[0];
+  }
+
+  return path || null;
+};
+
 /** 添加费用 */
 export const addExpenseSupabase = async (
   expense: Omit<Expense, "id" | "created_at" | "updated_at">
@@ -222,6 +286,33 @@ export const deleteExpenseSupabase = async (
   id: number
 ): Promise<OperationResult> => {
   try {
+    const { data: expense, error: fetchError } = await supabase
+      .from("expenses")
+      .select("attachments")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) {
+      console.error("获取费用附件失败:", fetchError);
+      return { success: false, message: fetchError.message };
+    }
+
+    const attachmentUrls = normalizeAttachments(expense?.attachments);
+    if (attachmentUrls.length > 0) {
+      for (const url of attachmentUrls) {
+        const objectPath = normalizeOssObjectPath(url);
+        if (!objectPath) continue;
+        const deleteResult = await deleteFileFromSupabase(objectPath);
+        if (!deleteResult.success) {
+          console.error("删除费用附件失败:", deleteResult.error);
+          return {
+            success: false,
+            message: deleteResult.error || "费用附件删除失败"
+          };
+        }
+      }
+    }
+
     const { error } = await supabase.from("expenses").delete().eq("id", id);
 
     if (error) {
@@ -241,6 +332,36 @@ export const batchDeleteExpenseSupabase = async (
   ids: number[]
 ): Promise<OperationResult> => {
   try {
+    const { data: expenses, error: fetchError } = await supabase
+      .from("expenses")
+      .select("id,attachments")
+      .in("id", ids);
+
+    if (fetchError) {
+      console.error("获取批量费用附件失败:", fetchError);
+      return { success: false, message: fetchError.message };
+    }
+
+    if (expenses && expenses.length > 0) {
+      for (const expense of expenses) {
+        const attachmentUrls = normalizeAttachments(
+          (expense as { attachments?: unknown }).attachments
+        );
+        for (const url of attachmentUrls) {
+          const objectPath = normalizeOssObjectPath(url);
+          if (!objectPath) continue;
+          const deleteResult = await deleteFileFromSupabase(objectPath);
+          if (!deleteResult.success) {
+            console.error("批量删除费用附件失败:", deleteResult.error);
+            return {
+              success: false,
+              message: deleteResult.error || "费用附件删除失败"
+            };
+          }
+        }
+      }
+    }
+
     const { error } = await supabase.from("expenses").delete().in("id", ids);
 
     if (error) {

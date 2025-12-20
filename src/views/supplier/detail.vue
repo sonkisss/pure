@@ -550,6 +550,16 @@ const paymentForm = reactive({
   remark: ""
 });
 
+// 付款校验用的可用欠款（编辑时需加回当前记录金额）
+const currentDebtForPayment = computed(() => {
+  const baseDebt = statistics.value.currentDebt || 0;
+  const editingAmount =
+    isEditPayment.value && currentEditPayment.value
+      ? Number(currentEditPayment.value.amount || 0)
+      : 0;
+  return baseDebt + editingAmount;
+});
+
 const paymentRules: FormRules = {
   amount: [
     { required: true, message: "请输入付款金额", trigger: "blur" },
@@ -565,7 +575,7 @@ const paymentRules: FormRules = {
         }
 
         // 检查付款金额不能大于当前欠款金额
-        const currentDebt = statistics.value.currentDebt;
+        const currentDebt = currentDebtForPayment.value;
         if (numValue > currentDebt) {
           callback(
             new Error(
@@ -955,9 +965,28 @@ const handleImageUploadSubmit = async () => {
 
 // 查看图片
 const handleViewImage = (imageUrl: string) => {
-  previewImages.value = [imageUrl];
-  currentImageIndex.value = 0;
-  imagePreviewVisible.value = true;
+  if (!imageUrl) {
+    ElMessage.error("暂无有效图片，请重新上传");
+    return;
+  }
+
+  fetch(imageUrl)
+    .then(resp => {
+      if (!resp.ok) {
+        throw new Error(`图片获取失败: ${resp.status}`);
+      }
+      return resp.blob();
+    })
+    .then(blob => {
+      const objectUrl = URL.createObjectURL(blob);
+      previewImages.value = [objectUrl];
+      currentImageIndex.value = 0;
+      imagePreviewVisible.value = true;
+    })
+    .catch(err => {
+      console.error("图片预览失败:", err);
+      ElMessage.error("图片预览失败，请重新上传该图片");
+    });
 };
 
 // 查看凭证（支持异步加载状态）

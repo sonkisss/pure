@@ -57,6 +57,17 @@ export default {
           "expense:delete"
         ]
       }
+    },
+    // 兼容旧链接：历史路径为 /business/contracts/detail/:id
+    {
+      path: "/business/contracts/detail/:id",
+      name: "ContractDetailLegacy",
+      component: () => import("@/views/business/contracts/detail.vue"),
+      meta: {
+        title: "合同明细",
+        showLink: false,
+        activeMenu: "/business"
+      }
     }
   ]
 } satisfies RouteConfigsTable;

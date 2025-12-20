@@ -1,5 +1,10 @@
 import { supabase } from "@/services/supabase";
-import { getPublicFileUrl, getSignedFileUrl } from "@/services/storage";
+import {
+  getPublicFileUrl,
+  getSignedFileUrl,
+  deleteFileFromSupabase,
+  uploadFileToSupabase
+} from "@/services/storage";
 import type {
   Supplier,
   SupplierListResult,
@@ -13,7 +18,8 @@ import type {
   PaymentType
 } from "@/api/supplier";
 
-const voucherBucket = "inquiry-attachments"; // 使用已知工作的inquiry-attachments存储桶
+const voucherBucket = "inquiry-attachments"; // 兼容旧路径（Supabase存储）
+const voucherFolder = "supplier-vouchers"; // OSS 路径前缀（真实存储路径）
 const sanitizeName = (name: string) =>
   name
     .normalize("NFKD")
@@ -163,7 +169,29 @@ const deleteSupplierSupabase = async (id: number): Promise<OperationResult> => {
       console.warn("删除供应商欠款记录失败:", deleteDebtsError);
     }
 
-    // 4. 删除所有付款记录
+    // 4. 删除所有付款记录（先清理凭证文件）
+    const { data: payments, error: paymentsError } = await supabase
+      .from("supplier_payments")
+      .select("voucher_url")
+      .eq("supplier_id", id);
+    if (paymentsError) {
+      console.warn("获取供应商付款凭证失败:", paymentsError);
+    } else if (payments && payments.length > 0) {
+      for (const payment of payments) {
+        if (!payment.voucher_url) continue;
+        const objectPath = resolveVoucherObjectPath(payment.voucher_url);
+        if (!objectPath) continue;
+        const deleteResult = await deleteFileFromSupabase(objectPath);
+        if (!deleteResult.success) {
+          return {
+            success: false,
+            message: deleteResult.error || "删除付款凭证文件失败"
+          };
+        }
+      }
+    }
+
+    // 5. 删除所有付款记录
     const { error: deletePaymentsError } = await supabase
       .from("supplier_payments")
       .delete()
@@ -173,7 +201,7 @@ const deleteSupplierSupabase = async (id: number): Promise<OperationResult> => {
       console.warn("删除供应商付款记录失败:", deletePaymentsError);
     }
 
-    // 5. 最后删除供应商记录
+    // 6. 最后删除供应商记录
     const del = await supabase.from("suppliers").delete().eq("id", id);
     if (del.error) return { success: false, message: del.error.message };
 
@@ -408,29 +436,48 @@ const getVoucherUrl = async (voucherUrl: string): Promise<string> => {
   }
 
   try {
-    // 构造完整路径： OSS 通常不需要 bucket 作为路径一部分，除非 bucket 是目录结构的一部分
-    // 但在 uploadFileToSupabase 中，我们使用了 bucket/folder/filename
-    // 这里 voucherBucket 是 "inquiry-attachments"
-    // 如果 voucherUrl 已经包含 bucket 前缀，则不需要拼接
-    
+    // 兼容旧路径（Supabase存储）与新路径（OSS），统一生成签名 URL，不再回退原链/公共链
     let fullPath = voucherUrl;
-    if (!fullPath.startsWith(voucherBucket) && !fullPath.includes("/")) {
-       // 假设它是文件名
-       fullPath = `${voucherBucket}/${voucherUrl}`;
+    if (fullPath.startsWith(voucherBucket)) {
+      const signed = await getSignedFileUrl(fullPath, 3600);
+      if (!signed) throw new Error("凭证签名生成失败");
+      return signed;
     }
 
-    // 优先使用公共URL（更快）
-    const pub = getPublicFileUrl(fullPath);
-    if (pub) {
-      return pub;
+    // 新路径：OSS 文件夹前缀 supplier-vouchers
+    if (!fullPath.includes("/")) {
+      fullPath = `${voucherFolder}/${fullPath}`;
     }
 
-    // 备选：创建签名URL
-    return await getSignedFileUrl(fullPath, 3600);
+    const signed = await getSignedFileUrl(fullPath, 3600);
+    if (!signed) throw new Error("凭证签名生成失败");
+    return signed;
   } catch (error) {
     console.warn("获取凭证URL失败:", error);
-    return "";
+    throw error;
   }
+};
+
+const resolveVoucherObjectPath = (voucherUrl: string): string => {
+  if (!voucherUrl || voucherUrl.startsWith("data:")) return "";
+  let path = voucherUrl;
+  try {
+    if (voucherUrl.startsWith("http")) {
+      const urlObj = new URL(voucherUrl);
+      path = urlObj.pathname.startsWith("/")
+        ? urlObj.pathname.slice(1)
+        : urlObj.pathname;
+    }
+  } catch {
+    path = voucherUrl;
+  }
+  if (path.includes("?")) {
+    path = path.split("?")[0];
+  }
+  if (!path.startsWith(`${voucherFolder}/`) && !path.startsWith(`${voucherBucket}/`)) {
+    path = `${voucherFolder}/${path}`;
+  }
+  return path;
 };
 
 const getSupplierPaymentListSupabase = async (
@@ -606,9 +653,24 @@ const deleteSupplierPaymentSupabase = async (
   if (!supabase) return { success: false, message: "no client" };
   const row = await supabase
     .from("supplier_payments")
-    .select("supplier_id,amount")
+    .select("supplier_id,amount,voucher_url")
     .eq("id", id)
     .single();
+  if (row.error) return { success: false, message: row.error.message };
+
+  if (row.data?.voucher_url) {
+    const objectPath = resolveVoucherObjectPath(row.data.voucher_url);
+    if (objectPath) {
+      const deleteResult = await deleteFileFromSupabase(objectPath);
+      if (!deleteResult.success) {
+        return {
+          success: false,
+          message: deleteResult.error || "删除凭证文件失败"
+        };
+      }
+    }
+  }
+
   const del = await supabase.from("supplier_payments").delete().eq("id", id);
   if (del.error) return { success: false, message: del.error.message };
   if (!row.error) {
@@ -854,14 +916,17 @@ const uploadSupplierVoucherSupabase = async (
   supplierId: number,
   file: File
 ): Promise<OperationResult> => {
-  if (!supabase) return { success: false, message: "no client" };
   const safe = sanitizeName((file as any).name || "file");
-  const path = `${supplierId}/${Date.now()}_${safe}`;
-  const up = await supabase.storage.from(voucherBucket).upload(path, file, {
-    upsert: false,
-    contentType: (file as any).type || "application/octet-stream"
-  });
-  if (up.error) return { success: false, message: up.error.message };
+  const upload = await uploadFileToSupabase(
+    file,
+    voucherFolder,
+    `${supplierId}`
+  );
+  if (!upload.success) {
+    return { success: false, message: upload.error || "上传失败" };
+  }
+  // 返回OSS路径，优先使用上传返回的 filePath
+  const path = upload.filePath || `${voucherFolder}/${supplierId}/${Date.now()}_${safe}`;
   return { success: true, message: "上传成功", data: { path } };
 };
 

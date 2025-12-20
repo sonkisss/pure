@@ -78,7 +78,10 @@
     "vite-plugin-remove-console": "^2.2.0",
     "vite-plugin-router-warn": "^2.0.0",
     "vite-svg-loader": "^5.1.0",
-    "vue-tsc": "^2.1.10"
+    "vitest": "^1.6.0",
+    "vue-tsc": "^2.1.10",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^24.1.0"
   },
   "engines": {
     "node": "^20.19.0 || >=22.13.0",

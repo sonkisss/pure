@@ -74,6 +74,7 @@ export interface ContractDetail {
   purchase_amount: number;
   sale_price: number;
   sale_amount: number;
+  is_credited?: boolean;
   supplier?: string;
   includes_tax: 0 | 1 | 2;
   payerId?: number; // 支付人ID
@@ -134,6 +135,7 @@ export interface ContractStatistics {
   total_sales: number;
   total_profit: number;
   total_expense?: number; // 新增字段：合同相关费用总和
+  total_uncredited_amount?: number; // 新增字段：未挂账金额
   contract_count: number;
   year: number;
 }
@@ -228,16 +230,23 @@ export const getContractList = async (data?: {
   status?: 1 | 0;
 }) => {
   if (supabase) {
-    const result = await getContractListSupabase(data);
-    if (result.success) {
-      return {
-        data: {
-          list: result.data,
-          total: result.total
-        }
-      };
+    try {
+      const result = await getContractListSupabase(data);
+      if (result.success) {
+        return {
+          data: {
+            list: result.data,
+            total: result.total
+          }
+        };
+      }
+      console.warn(
+        "[Supabase] 获取合同列表失败，回退 HTTP 接口：",
+        result.message
+      );
+    } catch (error) {
+      console.warn("[Supabase] 获取合同列表异常，回退 HTTP 接口：", error);
     }
-    throw new Error(result.message || "获取合同列表失败");
   }
   return http
     .request<
@@ -306,39 +315,46 @@ export const deleteContract = async (id: number) => {
 
 export const getContractDetail = async (id: number) => {
   if (supabase) {
-    const result = await getContractDetailSupabase(id);
-    if (result.success && result.data) {
-      // 🚀 性能优化：转换数据结构以兼容现有前端代码
-      const contractData = result.data;
-      return {
-        data: {
-          contract: {
-            id: contractData.id,
-            contract_name: contractData.contract_name,
-            company_id: contractData.company_id,
-            company_name: contractData.company_name,
-            contract_amount: contractData.contract_amount,
-            contract_year: contractData.contract_year,
-            contract_date: contractData.contract_date,
-            // attachment_url: contractData.attachment_url, // contracts表没有attachment_url列，已移除到contract_attachments表
-            remark: contractData.remark,
-            status: contractData.status,
-            created_by: contractData.created_by,
-            created_at: contractData.created_at,
-            updated_at: contractData.updated_at
-          },
-          details: contractData.contract_details || [],
-          expenses: contractData.expenses || [],
-          profit: {
-            contract_amount: contractData.contract_amount,
-            total_purchase_amount: contractData.total_purchase_amount || 0,
-            total_expense_amount: contractData.total_expense_amount || 0,
-            total_profit: contractData.profit || 0
+    try {
+      const result = await getContractDetailSupabase(id);
+      if (result.success && result.data) {
+        // 🚀 性能优化：转换数据结构以兼容现有前端代码
+        const contractData = result.data;
+        return {
+          data: {
+            contract: {
+              id: contractData.id,
+              contract_name: contractData.contract_name,
+              company_id: contractData.company_id,
+              company_name: contractData.company_name,
+              contract_amount: contractData.contract_amount,
+              contract_year: contractData.contract_year,
+              contract_date: contractData.contract_date,
+              // attachment_url: contractData.attachment_url, // contracts表没有attachment_url列，已移除到contract_attachments表
+              remark: contractData.remark,
+              status: contractData.status,
+              created_by: contractData.created_by,
+              created_at: contractData.created_at,
+              updated_at: contractData.updated_at
+            },
+            details: contractData.contract_details || [],
+            expenses: contractData.expenses || [],
+            profit: {
+              contract_amount: contractData.contract_amount,
+              total_purchase_amount: contractData.total_purchase_amount || 0,
+              total_expense_amount: contractData.total_expense_amount || 0,
+              total_profit: contractData.profit || 0
+            }
           }
-        }
-      };
+        };
+      }
+      console.warn(
+        "[Supabase] 获取合同详情失败，回退 HTTP 接口：",
+        result.message
+      );
+    } catch (error) {
+      console.warn("[Supabase] 获取合同详情异常，回退 HTTP 接口：", error);
     }
-    throw new Error(result.message || "获取合同详情失败");
   }
   return http.request<{
     contract: Contract;
@@ -348,12 +364,20 @@ export const getContractDetail = async (id: number) => {
   }>("get", `/contract/detail/${id}`);
 };
 
-export const getContractStatistics = (year?: number, company_id?: number) => {
+export const getContractStatistics = async (
+  year?: number,
+  company_id?: number
+) => {
   if (supabase) {
-    return getContractStatisticsSupabase(year, company_id).then(result => ({
-      success: true,
-      data: result
-    }));
+    try {
+      const result = await getContractStatisticsSupabase(year, company_id);
+      return {
+        success: true,
+        data: result
+      };
+    } catch (error) {
+      console.warn("[Supabase] 获取合同统计失败，回退 HTTP 接口：", error);
+    }
   }
   return http
     .request<ApiResponse<ContractStatistics>>("get", "/contract/statistics", {
@@ -369,12 +393,30 @@ export const getBatchContractStatistics = (
 ) => {
   if (supabase) {
     // Supabase实现：使用in查询一次性获取多个公司的统计数据
-    return getBatchContractStatisticsSupabase(year, companyIds).then(
-      result => ({
+    return getBatchContractStatisticsSupabase(year, companyIds)
+      .then(result => ({
         success: true,
         data: result
-      })
-    );
+      }))
+      .catch(error => {
+        console.warn(
+          "[Supabase] 批量获取合同统计失败，回退 HTTP 接口：",
+          error
+        );
+        // 如果 Supabase 失败，回退到原来的 Promise.all 方案
+        const promises = companyIds.map(companyId =>
+          getContractStatistics(year, companyId)
+        );
+        return Promise.all(promises).then(results => ({
+          success: true,
+          data: results.map(result => {
+            if (result && typeof result === "object" && "data" in result) {
+              return (result as any).data;
+            }
+            return result;
+          })
+        }));
+      });
   }
 
   // Mock实现：并行请求多个公司的统计数据
@@ -475,7 +517,14 @@ export const updateProduct = (data: {
 
 // 费用类别相关接口
 export const getExpenseCategories = (status?: 1 | 0) => {
-  if (supabase) return getExpenseCategoriesSupabase(status);
+  if (supabase) {
+    return getExpenseCategoriesSupabase(status).catch(error => {
+      console.warn("[Supabase] 获取费用类别失败，回退 HTTP 接口：", error);
+      return http.request<ExpenseCategory[]>("get", "/expense-categories/list", {
+        params: { status }
+      });
+    });
+  }
   return http.request<ExpenseCategory[]>("get", "/expense-categories/list", {
     params: { status }
   });

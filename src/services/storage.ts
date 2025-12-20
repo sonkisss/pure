@@ -4,26 +4,161 @@ import OSS from "ali-oss";
 const ossRegion = import.meta.env.VITE_OSS_REGION;
 const ossAccessKeyId = import.meta.env.VITE_OSS_ACCESS_KEY_ID;
 const ossAccessKeySecret = import.meta.env.VITE_OSS_ACCESS_KEY_SECRET;
+const ossStsToken = import.meta.env.VITE_OSS_STS_TOKEN; // 推荐：临时安全令牌
+const ossStsEndpoint = import.meta.env.VITE_OSS_STS_ENDPOINT; // 后端/云函数获取 STS
 const ossBucket = import.meta.env.VITE_OSS_BUCKET;
+const ossCustomDomain = import.meta.env.VITE_OSS_CUSTOM_DOMAIN; // 自定义域名（可选）
+const ossEndpoint = import.meta.env.VITE_OSS_ENDPOINT;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseAccessToken = import.meta.env.VITE_SUPABASE_ACCESS_TOKEN;
 
-let ossClient: OSS | undefined;
+let activeRegion = ossRegion;
+let activeBucket = ossBucket;
+let activeCustomDomain = ossCustomDomain;
+let activeEndpoint = ossEndpoint;
 
-if (ossRegion && ossAccessKeyId && ossAccessKeySecret && ossBucket) {
+type OssCredentials = {
+  accessKeyId: string;
+  accessKeySecret: string;
+  stsToken?: string;
+  expireAt?: number;
+  region?: string;
+  bucket?: string;
+  endpoint?: string;
+  customDomain?: string;
+};
+
+let cachedCreds: OssCredentials | undefined;
+let ossClientPromise: Promise<OSS | undefined> | undefined;
+
+const isExpiring = (creds?: OssCredentials) =>
+  !!creds?.expireAt && creds.expireAt - Date.now() < 5 * 60 * 1000; // 提前 5 分钟刷新
+
+const fetchStsCredentialsFromApi = async (): Promise<OssCredentials> => {
+  if (!ossStsEndpoint) {
+    throw new Error("缺少后端 STS 接口（VITE_OSS_STS_ENDPOINT）");
+  }
+  const headers: Record<string, string> = {};
+  const authToken = supabaseAccessToken || supabaseAnonKey;
+  // Supabase Edge Functions 默认需要 apikey/Authorization，缺少会返回 401
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+    headers.apikey = supabaseAnonKey || authToken;
+  }
+  const resp = await fetch(ossStsEndpoint, {
+    method: "GET",
+    headers: Object.keys(headers).length ? headers : undefined
+  });
+  if (!resp.ok) {
+    throw new Error(`STS 接口请求失败: ${resp.status} ${resp.statusText}`);
+  }
+  const data = await resp.json();
+  if (!data?.accessKeyId || !data?.accessKeySecret) {
+    throw new Error("STS 接口返回缺少凭证字段");
+  }
+  const expireAt = data.expiration ? Date.parse(data.expiration) : undefined;
+  return {
+    accessKeyId: data.accessKeyId,
+    accessKeySecret: data.accessKeySecret,
+    stsToken: data.stsToken,
+    expireAt,
+    region: data.region,
+    bucket: data.bucket,
+    endpoint: data.endpoint,
+    customDomain: data.customDomain
+  };
+};
+
+const initOssClient = async (): Promise<OSS | undefined> => {
   try {
-    ossClient = new OSS({
-      region: ossRegion,
-      accessKeyId: ossAccessKeyId,
-      accessKeySecret: ossAccessKeySecret,
-      bucket: ossBucket,
-      secure: true // 使用 HTTPS
-    });
+    let creds: OssCredentials | undefined;
+
+    if (ossStsEndpoint) {
+      try {
+        creds = await fetchStsCredentialsFromApi();
+      } catch (err) {
+        console.warn("STS 接口调用失败，回退本地环境变量:", err);
+      }
+    }
+
+    if (!creds) {
+      if (!ossAccessKeyId || !ossAccessKeySecret || !ossBucket) {
+        console.warn("⚠️ OSS 配置缺失，无法初始化客户端");
+        return undefined;
+      }
+      creds = {
+          accessKeyId: ossAccessKeyId,
+          accessKeySecret: ossAccessKeySecret,
+          stsToken: ossStsToken,
+          region: ossRegion,
+          bucket: ossBucket,
+          endpoint: ossEndpoint,
+          customDomain: ossCustomDomain,
+          expireAt: Date.now() + 3600 * 1000 // 临时设置 1 小时有效，避免立即刷新
+        };
+    }
+
+    activeRegion = creds.region || ossRegion;
+    activeBucket = creds.bucket || ossBucket;
+    activeCustomDomain = creds.customDomain || ossCustomDomain;
+    activeEndpoint = creds.endpoint || ossEndpoint;
+    cachedCreds = creds;
+
+    const baseOptions: OSS.Options = {
+      region: activeRegion || "",
+      accessKeyId: creds.accessKeyId,
+      accessKeySecret: creds.accessKeySecret,
+      bucket: activeBucket || "",
+      secure: true,
+      ...(creds.stsToken ? { stsToken: creds.stsToken } : {})
+    };
+
+    if (activeCustomDomain) {
+      const customUrl = activeCustomDomain.startsWith("http")
+        ? new URL(activeCustomDomain)
+        : new URL(`https://${activeCustomDomain}`);
+      baseOptions.endpoint = customUrl.origin;
+      baseOptions.cname = true;
+      baseOptions.secure = customUrl.protocol === "https:";
+    } else if (activeEndpoint) {
+      baseOptions.endpoint = activeEndpoint;
+    }
+
+    if (ossStsEndpoint) {
+      baseOptions.refreshSTSToken = async () => {
+        const fresh = await fetchStsCredentialsFromApi();
+        cachedCreds = fresh;
+        activeRegion = fresh.region || activeRegion;
+        activeBucket = fresh.bucket || activeBucket;
+        activeCustomDomain = fresh.customDomain || activeCustomDomain;
+        activeEndpoint = fresh.endpoint || activeEndpoint;
+        console.log("🔄 已自动刷新 OSS STS 凭证");
+        return {
+          accessKeyId: fresh.accessKeyId,
+          accessKeySecret: fresh.accessKeySecret,
+          stsToken: fresh.stsToken || ""
+        };
+      };
+      baseOptions.refreshSTSTokenInterval = cachedCreds?.expireAt
+        ? Math.max(5 * 60 * 1000, cachedCreds.expireAt - Date.now() - 5 * 60 * 1000)
+        : 15 * 60 * 1000;
+    }
+
+    const client = new OSS(baseOptions);
     console.log("✅ 阿里云 OSS 客户端初始化成功");
+    return client;
   } catch (error) {
     console.error("❌ 阿里云 OSS 客户端初始化失败:", error);
+    return undefined;
   }
-} else {
-  console.warn("⚠️ 阿里云 OSS 配置缺失，请检查 .env 文件");
-}
+};
+
+const getOssClient = async (): Promise<OSS | undefined> => {
+  if (!ossClientPromise || isExpiring(cachedCreds)) {
+    ossClientPromise = initOssClient();
+  }
+  return ossClientPromise;
+};
 
 export interface StorageFile {
   id: string;
@@ -68,9 +203,8 @@ const DEFAULT_FILE_SIZE_LIMIT = 50 * 1024 * 1024; // 50MB
 const ensureBucketExists = async (
   bucket: string
 ): Promise<{ success: boolean; error?: string }> => {
-  if (!ossClient) {
-    return { success: false, error: "OSS client not configured" };
-  }
+  const client = await getOssClient();
+  if (!client) return { success: false, error: "OSS client not configured" };
   // OSS 中不需要像 Supabase 那样创建 Bucket，我们假设主 Bucket 已经存在
   // 这里的 bucket 参数将作为文件夹处理
   return { success: true };
@@ -86,22 +220,26 @@ export const uploadFileToPath = async (
   file: File,
   fullPath: string
 ): Promise<UploadResult> => {
-  if (!ossClient) {
-    return { success: false, error: "OSS client not available. Check .env configuration." };
-  }
+  const client = await getOssClient();
+  if (!client) return { success: false, error: "OSS client not available. Check .env configuration." };
 
   try {
     console.log(`正在上传文件到 OSS (直接路径): ${fullPath}`);
 
-    // 上传文件
-    const result = await ossClient.put(fullPath, file);
+    // 上传文件，显式带上内容类型，方便预览时使用正确的 Content-Type
+    const result = await client.put(fullPath, file, {
+      headers: {
+        "Content-Type": file.type || "application/pdf",
+        "Content-Disposition": "inline"
+      }
+    });
 
     if (result.res.status === 200) {
       console.log("OSS Upload Success:", result);
       
       let fileUrl = result.url;
-      if (!fileUrl) {
-         fileUrl = `https://${ossBucket}.${ossRegion}.aliyuncs.com/${fullPath}`;
+      if (!fileUrl && activeBucket && activeRegion) {
+        fileUrl = `https://${activeBucket}.${activeRegion}.aliyuncs.com/${fullPath}`;
       }
       
       if (fileUrl.startsWith('http://')) {
@@ -111,7 +249,7 @@ export const uploadFileToPath = async (
       return {
         success: true,
         filePath: fullPath,
-        fileUrl: fileUrl
+        fileUrl: fileUrl || ""
       };
     } else {
       console.error("OSS Upload Failed:", result);
@@ -165,9 +303,8 @@ export const deleteFileFromSupabase = async (
   filePath: string,
   bucket: string = "invoices"
 ): Promise<{ success: boolean; error?: string }> => {
-  if (!ossClient) {
-    return { success: false, error: "OSS client not available" };
-  }
+  const client = await getOssClient();
+  if (!client) return { success: false, error: "OSS client not available" };
 
   try {
     // 如果 filePath 已经包含了 bucket 前缀，直接使用
@@ -183,7 +320,7 @@ export const deleteFileFromSupabase = async (
     }
 
     console.log(`正在删除 OSS 文件: ${objectName}`);
-    const result = await ossClient.delete(objectName);
+    const result = await client.delete(objectName);
 
     if (result.res.status >= 200 && result.res.status < 300) {
       return { success: true };
@@ -209,7 +346,7 @@ export const getPublicFileUrl = (
   filePath: string,
   bucket: string = "invoices"
 ): string => {
-  if (!ossBucket || !ossRegion) {
+  if (!activeBucket || !activeRegion) {
     console.warn("OSS配置缺失，无法生成公共URL");
     return "";
   }
@@ -225,11 +362,19 @@ export const getPublicFileUrl = (
     return filePath;
   }
 
-  // 假设 filePath 是 objectName
-  // 为了兼容之前的 bucket 参数，如果 objectName 不包含 bucket 且 bucket 参数有值
-  // 可以在这里拼接，但 getPublicUrl 通常只负责格式化
-  // 假设 filePath 已经是完整的 object key
-  return `https://${ossBucket}.${ossRegion}.aliyuncs.com/${filePath}`;
+  // 使用自定义域名优先，其次默认域名
+  if (activeCustomDomain) {
+    try {
+      const customUrl = activeCustomDomain.startsWith("http")
+        ? new URL(activeCustomDomain)
+        : new URL(`https://${activeCustomDomain}`);
+      return `${customUrl.origin}/${filePath}`;
+    } catch {
+      // ignore and fallback
+    }
+  }
+
+  return `https://${activeBucket}.${activeRegion}.aliyuncs.com/${filePath}`;
 };
 
 /**
@@ -243,7 +388,8 @@ export const getSignedFileUrl = async (
   expires: number = 3600,
   options?: { inline?: boolean; contentType?: string; fileName?: string }
 ): Promise<string> => {
-  if (!ossClient) {
+  const client = await getOssClient();
+  if (!client) {
     console.warn("OSS client not available for signed URL");
     return "";
   }
@@ -253,27 +399,31 @@ export const getSignedFileUrl = async (
       options?.fileName || fullPath.split("/").pop() || "file";
 
     const responseHeaders: Record<string, string> = {};
-    if (options?.contentType) {
-      responseHeaders["content-type"] = options.contentType;
-    }
-    // 默认改为 inline，防止点击预览时强制下载
-    if (options?.inline !== undefined || options?.fileName) {
-      const disposition = options?.inline ? "inline" : "attachment";
-      const encodedName = encodeURIComponent(fileName);
-      responseHeaders[
-        "content-disposition"
-      ] = `${disposition}; filename=\"${encodedName}\"; filename*=UTF-8''${encodedName}`;
-    }
+    const disposition =
+      (options?.inline ?? true) === false ? "attachment" : "inline";
+    const encodedName = encodeURIComponent(fileName);
+    responseHeaders[
+      "content-disposition"
+    ] = `${disposition}; filename=\"${encodedName}\"; filename*=UTF-8''${encodedName}`;
 
-    return ossClient.signatureUrl(fullPath, {
+    const signed = client.signatureUrl(fullPath, {
       expires,
-      response: Object.keys(responseHeaders).length
-        ? responseHeaders
-        : undefined
+      response: responseHeaders
     });
+    return signed;
   } catch (error) {
     console.error("OSS signatureUrl error:", error);
     return "";
+  }
+};
+
+/** 从完整 URL 中提取对象路径（bucket 下的 object key） */
+export const extractOssObjectPath = (url: string): string => {
+  try {
+    const u = new URL(url);
+    return u.pathname.startsWith("/") ? u.pathname.slice(1) : u.pathname;
+  } catch {
+    return url.startsWith("/") ? url.slice(1) : url;
   }
 };
 
@@ -289,9 +439,8 @@ export const listFilesFromSupabase = async (
   path: string,
   limit: number = 100
 ): Promise<{ data: any[] | null; error: any }> => {
-  if (!ossClient) {
-    return { data: null, error: new Error("OSS client not available") };
-  }
+  const client = await getOssClient();
+  if (!client) return { data: null, error: new Error("OSS client not available") };
 
   try {
     // 构造 prefix: bucket/path/
@@ -305,7 +454,7 @@ export const listFilesFromSupabase = async (
       prefix = prefix.substring(1);
     }
 
-    const result = await ossClient.list({
+    const result = await client.list({
       prefix: prefix,
       "max-keys": limit
     }, {});
