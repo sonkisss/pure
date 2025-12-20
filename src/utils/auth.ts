@@ -69,7 +69,13 @@ export function setToken(data: DataInfo<Date>) {
       : {}
   );
 
-  function setUserKey({ avatar, username, nickname, roles, permissions }: {
+  function setUserKey({
+    avatar,
+    username,
+    nickname,
+    roles,
+    permissions
+  }: {
     avatar: string;
     username: string;
     nickname: string;

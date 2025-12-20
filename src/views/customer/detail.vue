@@ -868,9 +868,7 @@ const handlePreviewPdf = async (invoiceUrl: string) => {
       if (fileInfo.fileUrl && fileInfo.filePath) {
         const objectPath = extractOssObjectPath(fileInfo.filePath);
         const fileName =
-          fileInfo.name ||
-          fileInfo.filePath.split("/").pop() ||
-          "invoice.pdf";
+          fileInfo.name || fileInfo.filePath.split("/").pop() || "invoice.pdf";
         if (objectPath) {
           const signed = await getSignedFileUrl(objectPath, 3600, {
             inline: true,
@@ -920,7 +918,9 @@ const handlePreviewPdf = async (invoiceUrl: string) => {
     // http 链接：如果是 OSS，重新签名后打开
     const cleanUrl = invoiceUrl.split("?")[0];
     const objectPath = extractOssObjectPath(cleanUrl);
-    const fileName = decodeURIComponent(cleanUrl.split("/").pop() || "invoice.pdf");
+    const fileName = decodeURIComponent(
+      cleanUrl.split("/").pop() || "invoice.pdf"
+    );
     if (objectPath) {
       const signed = await getSignedFileUrl(objectPath, 3600, {
         inline: true,

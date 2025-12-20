@@ -54,16 +54,32 @@ vi.mock("@/api/inquiry", () => ({
       success: true,
       data: {
         list: [
-          { id: 1, name: "询价单1", company: "公司A", date: "2024-01-01", items: [] },
-          { id: 2, name: "询价单2", company: "公司B", date: "2024-02-01", items: [] }
+          {
+            id: 1,
+            name: "询价单1",
+            company: "公司A",
+            date: "2024-01-01",
+            items: []
+          },
+          {
+            id: 2,
+            name: "询价单2",
+            company: "公司B",
+            date: "2024-02-01",
+            items: []
+          }
         ],
         total: 2
       }
     })
   ),
   addInquiry: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deleteInquiry: vi.fn(() => Promise.resolve({ success: true, message: "deleted" })),
-  saveExcelInquiry: vi.fn(() => Promise.resolve({ success: true, message: "saved" }))
+  deleteInquiry: vi.fn(() =>
+    Promise.resolve({ success: true, message: "deleted" })
+  ),
+  saveExcelInquiry: vi.fn(() =>
+    Promise.resolve({ success: true, message: "saved" })
+  )
 }));
 
 vi.mock("xlsx", () => ({}));
@@ -148,14 +164,20 @@ describe("Inquiry management page", () => {
     await vi.runAllTimersAsync();
     await flushPromises();
 
-    const vm = wrapper.vm as unknown as { tableData: Array<any>; total: number };
+    const vm = wrapper.vm as unknown as {
+      tableData: Array<any>;
+      total: number;
+    };
     expect(vm.tableData.length).toBe(2);
     expect(vm.total).toBe(2);
   });
 
   it("opens add dialog", async () => {
     const wrapper = mount(InquiryPage, mountOptions);
-    const vm = wrapper.vm as unknown as { addDialogVisible: boolean; handleAdd: () => void };
+    const vm = wrapper.vm as unknown as {
+      addDialogVisible: boolean;
+      handleAdd: () => void;
+    };
     vm.addDialogVisible = false;
     vm.handleAdd();
     expect(vm.addDialogVisible).toBe(true);

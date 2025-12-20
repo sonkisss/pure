@@ -1,6 +1,5 @@
 import { supabase } from "@/services/supabase";
 import {
-  getPublicFileUrl,
   getSignedFileUrl,
   deleteFileFromSupabase,
   uploadFileToSupabase
@@ -474,7 +473,10 @@ const resolveVoucherObjectPath = (voucherUrl: string): string => {
   if (path.includes("?")) {
     path = path.split("?")[0];
   }
-  if (!path.startsWith(`${voucherFolder}/`) && !path.startsWith(`${voucherBucket}/`)) {
+  if (
+    !path.startsWith(`${voucherFolder}/`) &&
+    !path.startsWith(`${voucherBucket}/`)
+  ) {
     path = `${voucherFolder}/${path}`;
   }
   return path;
@@ -926,7 +928,8 @@ const uploadSupplierVoucherSupabase = async (
     return { success: false, message: upload.error || "上传失败" };
   }
   // 返回OSS路径，优先使用上传返回的 filePath
-  const path = upload.filePath || `${voucherFolder}/${supplierId}/${Date.now()}_${safe}`;
+  const path =
+    upload.filePath || `${voucherFolder}/${supplierId}/${Date.now()}_${safe}`;
   return { success: true, message: "上传成功", data: { path } };
 };
 

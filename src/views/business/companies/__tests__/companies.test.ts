@@ -9,7 +9,12 @@ function createStub(name = "ElStub") {
   return defineComponent({
     name,
     setup(_, { slots, attrs }) {
-      return () => h("div", attrs, [slots.header?.(), slots.default?.(), slots.footer?.()]);
+      return () =>
+        h("div", attrs, [
+          slots.header?.(),
+          slots.default?.(),
+          slots.footer?.()
+        ]);
     }
   });
 }
@@ -84,7 +89,12 @@ vi.mock("@/api/business", () => ({
   ),
   getContractStatistics: vi.fn(() =>
     Promise.resolve({
-      data: { total_sales: 1000, total_profit: 300, contract_count: 5, year: 2024 }
+      data: {
+        total_sales: 1000,
+        total_profit: 300,
+        contract_count: 5,
+        year: 2024
+      }
     })
   ),
   addCompany: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
@@ -101,7 +111,8 @@ vi.mock("@/utils/unifiedStatisticsCache", () => {
   return {
     unifiedStatisticsCache: {
       get: (id: number, year: number) => cache.get(`${id}-${year}`),
-      set: (id: number, year: number, val: any) => cache.set(`${id}-${year}`, val),
+      set: (id: number, year: number, val: any) =>
+        cache.set(`${id}-${year}`, val),
       invalidate: (id: number) => {
         [...cache.keys()].forEach(k => {
           if (k.startsWith(`${id}-`)) cache.delete(k);
@@ -195,7 +206,9 @@ describe("Business companies page", () => {
     await vi.runAllTimersAsync();
     await flushPromises();
 
-    const vm = wrapper.vm as unknown as { handleCompanyClick: (c: any) => void };
+    const vm = wrapper.vm as unknown as {
+      handleCompanyClick: (c: any) => void;
+    };
     vm.handleCompanyClick({ id: 99, company_name: "测试公司" } as any);
     expect(routerPush).toHaveBeenCalledWith({
       name: "ContractList",
@@ -205,7 +218,11 @@ describe("Business companies page", () => {
 
   it("opens dialog on add company", async () => {
     const wrapper = mount(CompaniesPage, mountOptions);
-    const vm = wrapper.vm as unknown as { dialogVisible: boolean; isEdit: boolean; handleAdd: () => void };
+    const vm = wrapper.vm as unknown as {
+      dialogVisible: boolean;
+      isEdit: boolean;
+      handleAdd: () => void;
+    };
     vm.dialogVisible = false;
     vm.isEdit = true;
 

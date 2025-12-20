@@ -87,15 +87,15 @@ const initOssClient = async (): Promise<OSS | undefined> => {
         return undefined;
       }
       creds = {
-          accessKeyId: ossAccessKeyId,
-          accessKeySecret: ossAccessKeySecret,
-          stsToken: ossStsToken,
-          region: ossRegion,
-          bucket: ossBucket,
-          endpoint: ossEndpoint,
-          customDomain: ossCustomDomain,
-          expireAt: Date.now() + 3600 * 1000 // 临时设置 1 小时有效，避免立即刷新
-        };
+        accessKeyId: ossAccessKeyId,
+        accessKeySecret: ossAccessKeySecret,
+        stsToken: ossStsToken,
+        region: ossRegion,
+        bucket: ossBucket,
+        endpoint: ossEndpoint,
+        customDomain: ossCustomDomain,
+        expireAt: Date.now() + 3600 * 1000 // 临时设置 1 小时有效，避免立即刷新
+      };
     }
 
     activeRegion = creds.region || ossRegion;
@@ -140,7 +140,10 @@ const initOssClient = async (): Promise<OSS | undefined> => {
         };
       };
       baseOptions.refreshSTSTokenInterval = cachedCreds?.expireAt
-        ? Math.max(5 * 60 * 1000, cachedCreds.expireAt - Date.now() - 5 * 60 * 1000)
+        ? Math.max(
+            5 * 60 * 1000,
+            cachedCreds.expireAt - Date.now() - 5 * 60 * 1000
+          )
         : 15 * 60 * 1000;
     }
 
@@ -175,7 +178,7 @@ export interface UploadResult {
   fileUrl?: string;
 }
 
-const DEFAULT_ALLOWED_MIME_TYPES = [
+export const DEFAULT_ALLOWED_MIME_TYPES = [
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -193,15 +196,15 @@ const DEFAULT_ALLOWED_MIME_TYPES = [
   "image/svg+xml"
 ];
 
-const DEFAULT_FILE_SIZE_LIMIT = 50 * 1024 * 1024; // 50MB
+export const DEFAULT_FILE_SIZE_LIMIT = 50 * 1024 * 1024; // 50MB
 
 /**
  * 检查存储桶是否存在 (OSS版本无需自动创建Bucket，假设已存在)
  * @param bucket 存储桶名称 (在OSS中对应为文件夹前缀)
  * @returns 检查结果
  */
-const ensureBucketExists = async (
-  bucket: string
+export const ensureBucketExists = async (
+  _bucket: string
 ): Promise<{ success: boolean; error?: string }> => {
   const client = await getOssClient();
   if (!client) return { success: false, error: "OSS client not configured" };
@@ -221,7 +224,11 @@ export const uploadFileToPath = async (
   fullPath: string
 ): Promise<UploadResult> => {
   const client = await getOssClient();
-  if (!client) return { success: false, error: "OSS client not available. Check .env configuration." };
+  if (!client)
+    return {
+      success: false,
+      error: "OSS client not available. Check .env configuration."
+    };
 
   try {
     console.log(`正在上传文件到 OSS (直接路径): ${fullPath}`);
@@ -236,14 +243,14 @@ export const uploadFileToPath = async (
 
     if (result.res.status === 200) {
       console.log("OSS Upload Success:", result);
-      
+
       let fileUrl = result.url;
       if (!fileUrl && activeBucket && activeRegion) {
         fileUrl = `https://${activeBucket}.${activeRegion}.aliyuncs.com/${fullPath}`;
       }
-      
-      if (fileUrl.startsWith('http://')) {
-        fileUrl = fileUrl.replace('http://', 'https://');
+
+      if (fileUrl.startsWith("http://")) {
+        fileUrl = fileUrl.replace("http://", "https://");
       }
 
       return {
@@ -253,7 +260,10 @@ export const uploadFileToPath = async (
       };
     } else {
       console.error("OSS Upload Failed:", result);
-      return { success: false, error: `Upload failed with status ${result.res.status}` };
+      return {
+        success: false,
+        error: `Upload failed with status ${result.res.status}`
+      };
     }
   } catch (error) {
     console.error("OSS Upload error:", error);
@@ -316,7 +326,7 @@ export const deleteFileFromSupabase = async (
     // 但鉴于 OSS objectKey 的灵活性，最安全的是让调用者传递正确的 fullPath
     // 或者我们假设 Supabase 的 bucket 概念映射为 OSS 的一级目录
     if (!filePath.includes("/")) {
-       objectName = `${bucket}/${filePath}`;
+      objectName = `${bucket}/${filePath}`;
     }
 
     console.log(`正在删除 OSS 文件: ${objectName}`);
@@ -325,7 +335,10 @@ export const deleteFileFromSupabase = async (
     if (result.res.status >= 200 && result.res.status < 300) {
       return { success: true };
     } else {
-      return { success: false, error: `Delete failed with status ${result.res.status}` };
+      return {
+        success: false,
+        error: `Delete failed with status ${result.res.status}`
+      };
     }
   } catch (error) {
     console.error("OSS Deletion error:", error);
@@ -344,7 +357,7 @@ export const deleteFileFromSupabase = async (
  */
 export const getPublicFileUrl = (
   filePath: string,
-  bucket: string = "invoices"
+  _bucket: string = "invoices"
 ): string => {
   if (!activeBucket || !activeRegion) {
     console.warn("OSS配置缺失，无法生成公共URL");
@@ -355,7 +368,7 @@ export const getPublicFileUrl = (
     console.warn("文件路径为空，无法生成公共URL");
     return "";
   }
-  
+
   // 简单拼接 URL
   // 如果 filePath 已经包含 http，直接返回
   if (filePath.startsWith("http")) {
@@ -393,18 +406,16 @@ export const getSignedFileUrl = async (
     console.warn("OSS client not available for signed URL");
     return "";
   }
-  
+
   try {
-    const fileName =
-      options?.fileName || fullPath.split("/").pop() || "file";
+    const fileName = options?.fileName || fullPath.split("/").pop() || "file";
 
     const responseHeaders: Record<string, string> = {};
     const disposition =
       (options?.inline ?? true) === false ? "attachment" : "inline";
     const encodedName = encodeURIComponent(fileName);
-    responseHeaders[
-      "content-disposition"
-    ] = `${disposition}; filename=\"${encodedName}\"; filename*=UTF-8''${encodedName}`;
+    responseHeaders["content-disposition"] =
+      `${disposition}; filename=\"${encodedName}\"; filename*=UTF-8''${encodedName}`;
 
     const signed = client.signatureUrl(fullPath, {
       expires,
@@ -440,7 +451,8 @@ export const listFilesFromSupabase = async (
   limit: number = 100
 ): Promise<{ data: any[] | null; error: any }> => {
   const client = await getOssClient();
-  if (!client) return { data: null, error: new Error("OSS client not available") };
+  if (!client)
+    return { data: null, error: new Error("OSS client not available") };
 
   try {
     // 构造 prefix: bucket/path/
@@ -454,38 +466,43 @@ export const listFilesFromSupabase = async (
       prefix = prefix.substring(1);
     }
 
-    const result = await client.list({
-      prefix: prefix,
-      "max-keys": limit
-    }, {});
+    const result = await client.list(
+      {
+        prefix: prefix,
+        "max-keys": limit
+      },
+      {}
+    );
 
     if (!result.objects) {
       return { data: [], error: null };
     }
 
     // 转换为 Supabase 风格的输出
-    const files = result.objects.map((obj: any) => {
-      // 获取文件名 (去除 prefix)
-      let name = obj.name;
-      if (name.startsWith(prefix)) {
-        name = name.substring(prefix.length);
-      }
-      
-      // 如果是目录占位符，跳过 (或者 name 为空)
-      if (!name) return null;
-
-      return {
-        name: name,
-        id: obj.etag, // 使用 etag 作为临时 ID
-        updated_at: obj.lastModified,
-        created_at: obj.lastModified,
-        last_accessed_at: obj.lastModified,
-        metadata: {
-          size: obj.size,
-          mimetype: "application/octet-stream" // OSS list 不返回 mimeType
+    const files = result.objects
+      .map((obj: any) => {
+        // 获取文件名 (去除 prefix)
+        let name = obj.name;
+        if (name.startsWith(prefix)) {
+          name = name.substring(prefix.length);
         }
-      };
-    }).filter((item: any) => item !== null);
+
+        // 如果是目录占位符，跳过 (或者 name 为空)
+        if (!name) return null;
+
+        return {
+          name: name,
+          id: obj.etag, // 使用 etag 作为临时 ID
+          updated_at: obj.lastModified,
+          created_at: obj.lastModified,
+          last_accessed_at: obj.lastModified,
+          metadata: {
+            size: obj.size,
+            mimetype: "application/octet-stream" // OSS list 不返回 mimeType
+          }
+        };
+      })
+      .filter((item: any) => item !== null);
 
     return { data: files, error: null };
   } catch (error) {

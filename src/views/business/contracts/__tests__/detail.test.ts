@@ -87,13 +87,21 @@ vi.mock("@/api/business", () => ({
       }
     })
   ),
-  addContractDetail: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  updateContractDetail: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deleteContractDetail: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
+  addContractDetail: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  updateContractDetail: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  deleteContractDetail: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
   addExpense: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
   updateExpense: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
   deleteExpense: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  updateContract: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
+  updateContract: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
   getExpenseCategories: vi.fn(() =>
     Promise.resolve({ data: [{ id: 1, name: "运输" }] })
   ),

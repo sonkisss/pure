@@ -119,20 +119,22 @@ export const getExpenseListSupabase = async (data?: {
             ? contractData[0]?.contract_name
             : contractData?.contract_name;
           return {
-          ...expense,
-          companyId: expense.company_id,
-          companyName: companyName || expense.company_name || "总部",
-          contractId: expense.contract_id,
-          // 修复：合同名称在嵌套的 contracts 对象中
-          contractName: contractName || "",
-          payerId: expense.payer_id === -1 ? 999999 : expense.payer_id,
-          payerName:
-            expense.payer_name || (expense.payer_id === -1 ? "公户" : "") || "",
-          title: expense.title,
-          expenseDate: expense.expense_date,
-          year: expense.year,
-          createTime: expense.created_at,
-          updateTime: expense.updated_at
+            ...expense,
+            companyId: expense.company_id,
+            companyName: companyName || expense.company_name || "总部",
+            contractId: expense.contract_id,
+            // 修复：合同名称在嵌套的 contracts 对象中
+            contractName: contractName || "",
+            payerId: expense.payer_id === -1 ? 999999 : expense.payer_id,
+            payerName:
+              expense.payer_name ||
+              (expense.payer_id === -1 ? "公户" : "") ||
+              "",
+            title: expense.title,
+            expenseDate: expense.expense_date,
+            year: expense.year,
+            createTime: expense.created_at,
+            updateTime: expense.updated_at
           } as Expense;
         }),
         total: count || 0
@@ -148,8 +150,10 @@ const extractAttachmentValue = (value: unknown): string | null => {
   if (!value) return null;
   if (typeof value === "string") return value;
   if (typeof value === "object") {
-    const candidate = (value as { fileUrl?: unknown; url?: unknown; path?: unknown })
-      .fileUrl ?? (value as { url?: unknown }).url ?? (value as { path?: unknown }).path;
+    const candidate =
+      (value as { fileUrl?: unknown; url?: unknown; path?: unknown }).fileUrl ??
+      (value as { url?: unknown }).url ??
+      (value as { path?: unknown }).path;
     if (typeof candidate === "string") return candidate;
   }
   return null;

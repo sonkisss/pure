@@ -146,7 +146,10 @@ describe("Product inquiry details page", () => {
     await vi.runAllTimersAsync();
     await flushPromises();
 
-    const vm = wrapper.vm as unknown as { tableData: Array<any>; pagination: { total: number } };
+    const vm = wrapper.vm as unknown as {
+      tableData: Array<any>;
+      pagination: { total: number };
+    };
     expect(vm.tableData.length).toBe(1);
     expect(vm.pagination.total).toBe(1);
   });

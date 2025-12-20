@@ -1,6 +1,5 @@
 // @ts-nocheck
 // import "@/utils/sso";
-import Cookies from "js-cookie";
 import { getConfig } from "@/config";
 import NProgress from "@/utils/progress";
 import { buildHierarchyTree } from "@/utils/tree";
@@ -31,12 +30,7 @@ import {
   type RouteComponent,
   createRouter
 } from "vue-router";
-import {
-  type DataInfo,
-  userKey,
-  removeToken,
-  multipleTabsKey
-} from "@/utils/auth";
+import { type DataInfo, userKey, removeToken } from "@/utils/auth";
 
 /** 使用静态路由模式（回退方案） */
 const modules: Record<string, any> = import.meta.glob(

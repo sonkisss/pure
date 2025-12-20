@@ -79,18 +79,37 @@ vi.mock("@/api/invoice", () => ({
       ]
     })
   ),
-  createSalesInvoice: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  createPurchaseInvoice: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  updateSalesInvoice: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  updatePurchaseInvoice: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deleteSalesInvoice: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deletePurchaseInvoice: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
+  createSalesInvoice: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  createPurchaseInvoice: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  updateSalesInvoice: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  updatePurchaseInvoice: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  deleteSalesInvoice: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  deletePurchaseInvoice: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
   deleteInvoiceFile: vi.fn(() => Promise.resolve({ success: true })),
   uploadInvoiceFile: vi.fn(() =>
-    Promise.resolve({ success: true, filePath: "path1", fileUrl: "http://example.com/file.pdf" })
+    Promise.resolve({
+      success: true,
+      filePath: "path1",
+      fileUrl: "http://example.com/file.pdf"
+    })
   ),
   getInvoicePublicUrl: vi.fn(() =>
-    Promise.resolve({ data: { signedUrl: "http://example.com/file.pdf" }, error: null })
+    Promise.resolve({
+      data: { signedUrl: "http://example.com/file.pdf" },
+      error: null
+    })
   ),
   getPendingPurchaseInvoiceCount: vi.fn(() =>
     Promise.resolve({ success: true, data: 3 })
@@ -102,7 +121,12 @@ vi.mock("@/services/storage", () => ({
 }));
 
 vi.mock("element-plus", () => {
-  const ElMessage = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
+  const ElMessage = {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn()
+  };
   const ElMessageBox = { confirm: vi.fn(() => Promise.resolve()) };
   const base = stubComponent();
   const form = stubComponent("ElForm");
@@ -123,7 +147,6 @@ vi.mock("element-plus", () => {
   const upload = stubComponent("ElUpload");
   const select = stubComponent("ElSelect");
   const option = stubComponent("ElOption");
-  const datePicker = stubComponent("ElDatePicker");
   const tag = stubComponent("ElTag");
   const tooltip = stubComponent("ElTooltip");
   const divider = stubComponent("ElDivider");

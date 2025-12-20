@@ -2,7 +2,6 @@ import { supabase } from "@/services/supabase";
 import {
   uploadFileToSupabase,
   listFilesFromSupabase,
-  getPublicFileUrl,
   getSignedFileUrl,
   deleteFileFromSupabase
 } from "@/services/storage";
@@ -396,7 +395,8 @@ const deleteAttachmentSupabase = async (
   const result = await deleteFileFromSupabase(
     `${bucket}/${inquiryId}/${target.name}`
   );
-  if (!result.success) return { success: false, message: result.error || "删除失败" };
+  if (!result.success)
+    return { success: false, message: result.error || "删除失败" };
   return { success: true, message: "附件删除成功" };
 };
 

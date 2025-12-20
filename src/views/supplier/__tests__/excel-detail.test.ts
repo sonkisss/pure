@@ -39,8 +39,26 @@ vi.mock("@/api/supplier", () => ({
     Promise.resolve({
       success: true,
       data: [
-        { id: 1, productName: "品1", productModel: "A", quantity: 2, unit: "件", unitPrice: 100, amount: 200, hasTax: true },
-        { id: 2, productName: "品2", productModel: "B", quantity: 1, unit: "件", unitPrice: 50, amount: 50, hasTax: false }
+        {
+          id: 1,
+          productName: "品1",
+          productModel: "A",
+          quantity: 2,
+          unit: "件",
+          unitPrice: 100,
+          amount: 200,
+          hasTax: true
+        },
+        {
+          id: 2,
+          productName: "品2",
+          productModel: "B",
+          quantity: 1,
+          unit: "件",
+          unitPrice: 50,
+          amount: 50,
+          hasTax: false
+        }
       ]
     })
   )
@@ -53,7 +71,15 @@ vi.mock("element-plus", () => {
   const column = defineComponent({
     name: "ElTableColumnStub",
     setup(_, { slots, attrs }) {
-      const row = { amount: 0, unitPrice: 0, quantity: 0, productName: "", productModel: "", unit: "", hasTax: false };
+      const row = {
+        amount: 0,
+        unitPrice: 0,
+        quantity: 0,
+        productName: "",
+        productModel: "",
+        unit: "",
+        hasTax: false
+      };
       return () => h("div", attrs, slots.default?.({ row }));
     }
   });
@@ -75,7 +101,15 @@ describe("Supplier debt excel detail page", () => {
   const column = defineComponent({
     name: "ElTableColumnStub",
     setup(_, { slots, attrs }) {
-      const row = { amount: 0, unitPrice: 0, quantity: 0, productName: "", productModel: "", unit: "", hasTax: false };
+      const row = {
+        amount: 0,
+        unitPrice: 0,
+        quantity: 0,
+        productName: "",
+        productModel: "",
+        unit: "",
+        hasTax: false
+      };
       return () => h("div", attrs, slots.default?.({ row }));
     }
   });
@@ -110,7 +144,10 @@ describe("Supplier debt excel detail page", () => {
     await vi.runAllTimersAsync();
     await flushPromises();
 
-    const vm = wrapper.vm as unknown as { excelItems: Array<any>; totalAmount: number };
+    const vm = wrapper.vm as unknown as {
+      excelItems: Array<any>;
+      totalAmount: number;
+    };
     expect(vm.excelItems.length).toBe(2);
     expect(vm.totalAmount).toBe(250);
   });

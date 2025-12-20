@@ -583,7 +583,10 @@ export class InvoicesSupabaseRepository {
   async getInvoicePublicUrl(
     filePath: string,
     options?: { inline?: boolean; fileName?: string }
-  ): Promise<{ data: { publicUrl: string; signedUrl: string } | null; error: any }> {
+  ): Promise<{
+    data: { publicUrl: string; signedUrl: string } | null;
+    error: any;
+  }> {
     const fullPath = `invoices/${filePath}`;
     // 私有 Bucket 需要签名 URL，生成一个可用的临时访问地址（默认 7 天有效）
     const signedUrlRaw = await getSignedFileUrl(fullPath, 7 * 24 * 3600, {
@@ -623,7 +626,7 @@ export class InvoicesSupabaseRepository {
   async deleteInvoiceFile(filePath: string): Promise<{ error: any }> {
     const fullPath = `invoices/${filePath}`;
     const result = await deleteFileFromSupabase(fullPath);
-    
+
     if (result.success) {
       return { error: null };
     } else {

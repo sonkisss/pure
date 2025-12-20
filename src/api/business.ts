@@ -462,9 +462,7 @@ export const deleteContractDetail = (id: number) => {
 };
 
 // 费用相关接口
-export const addExpense = (
-  data: any
-) => {
+export const addExpense = (data: any) => {
   if (supabase) return addExpenseSupabase(data);
   return http.request<OperationResult>("post", "/expense/add", { data });
 };
@@ -520,9 +518,13 @@ export const getExpenseCategories = (status?: 1 | 0) => {
   if (supabase) {
     return getExpenseCategoriesSupabase(status).catch(error => {
       console.warn("[Supabase] 获取费用类别失败，回退 HTTP 接口：", error);
-      return http.request<ExpenseCategory[]>("get", "/expense-categories/list", {
-        params: { status }
-      });
+      return http.request<ExpenseCategory[]>(
+        "get",
+        "/expense-categories/list",
+        {
+          params: { status }
+        }
+      );
     });
   }
   return http.request<ExpenseCategory[]>("get", "/expense-categories/list", {
@@ -530,9 +532,7 @@ export const getExpenseCategories = (status?: 1 | 0) => {
   });
 };
 
-export const addExpenseCategory = (
-  data: any
-) => {
+export const addExpenseCategory = (data: any) => {
   if (supabase) return addExpenseCategorySupabase(data);
   return http.request<OperationResult>("post", "/expense-categories/add", {
     data
@@ -649,9 +649,7 @@ export const oneClickProductSelection = async (inquiryId: number) => {
       const itemsNeedingUpdate = inquiryItemsForMatching.filter(
         item =>
           parseFloat(item.unit_price || "0") <= 0 &&
-          parseFloat(
-            (item as any).sale_price || item.salePrice || "0"
-          ) <= 0
+          parseFloat((item as any).sale_price || item.salePrice || "0") <= 0
       );
 
       console.log(

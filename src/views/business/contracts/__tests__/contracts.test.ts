@@ -93,8 +93,12 @@ vi.mock("@/api/business", () => ({
     })
   ),
   addContract: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  updateContract: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deleteContract: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
+  updateContract: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  deleteContract: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
   getContractStatistics: vi.fn(() =>
     Promise.resolve({
       data: {
@@ -246,9 +250,14 @@ describe("Business contract list page", () => {
   it("navigates to contract detail when clicking view", async () => {
     const wrapper = mount(ContractList, mountOptions);
     await flushPromises();
-    const vm = wrapper.vm as unknown as { handleViewContract: (c: any) => void };
+    const vm = wrapper.vm as unknown as {
+      handleViewContract: (c: any) => void;
+    };
     vm.handleViewContract({ id: 88 } as any);
-    expect(routerPush).toHaveBeenCalledWith({ name: "ContractDetail", params: { id: 88 } });
+    expect(routerPush).toHaveBeenCalledWith({
+      name: "ContractDetail",
+      params: { id: 88 }
+    });
   });
 
   it("opens add dialog with defaults", async () => {

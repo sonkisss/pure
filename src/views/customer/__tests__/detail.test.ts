@@ -9,7 +9,12 @@ function createElStub() {
   return defineComponent({
     name: "ElStub",
     setup(_, { slots, attrs }) {
-      return () => h("div", attrs, [slots.header?.(), slots.default?.(), slots.footer?.()]);
+      return () =>
+        h("div", attrs, [
+          slots.header?.(),
+          slots.default?.(),
+          slots.footer?.()
+        ]);
     }
   });
 }
@@ -73,7 +78,8 @@ vi.mock("element-plus", () => {
         creditDate: "",
         invoiceUrl: ""
       };
-      return () => h("div", attrs, slots.default?.({ row: defaultRow, column: {} }));
+      return () =>
+        h("div", attrs, slots.default?.({ row: defaultRow, column: {} }));
     }
   });
   return {
@@ -103,7 +109,13 @@ vi.mock("@/api/customer", () => ({
   getCustomerDetail: vi.fn(() =>
     Promise.resolve({
       success: true,
-      data: { id: 1, name: "客户A", companyName: "公司1", debt: 3000, companyId: 1 }
+      data: {
+        id: 1,
+        name: "客户A",
+        companyName: "公司1",
+        debt: 3000,
+        companyId: 1
+      }
     })
   ),
   getPaymentRecordList: vi.fn(() =>
@@ -142,12 +154,24 @@ vi.mock("@/api/customer", () => ({
       }
     })
   ),
-  addPaymentRecord: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  updatePaymentRecord: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deletePaymentRecord: vi.fn(() => Promise.resolve({ success: true, message: "deleted" })),
-  addCreditRecord: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  updateCreditRecord: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deleteCreditRecord: vi.fn(() => Promise.resolve({ success: true, message: "deleted" }))
+  addPaymentRecord: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  updatePaymentRecord: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  deletePaymentRecord: vi.fn(() =>
+    Promise.resolve({ success: true, message: "deleted" })
+  ),
+  addCreditRecord: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  updateCreditRecord: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  deleteCreditRecord: vi.fn(() =>
+    Promise.resolve({ success: true, message: "deleted" })
+  )
 }));
 
 vi.mock("@/api/business", () => ({
@@ -158,7 +182,13 @@ vi.mock("@/api/business", () => ({
 
 // storage 服务 stub，避免真实网络
 vi.mock("@/services/storage", () => ({
-  uploadFileToSupabase: vi.fn(() => Promise.resolve({ success: true, filePath: "path/file.pdf", fileUrl: "http://x/file.pdf" })),
+  uploadFileToSupabase: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      filePath: "path/file.pdf",
+      fileUrl: "http://x/file.pdf"
+    })
+  ),
   getPublicFileUrl: vi.fn(),
   deleteFileFromSupabase: vi.fn(() => Promise.resolve({ success: true })),
   getSignedFileUrl: vi.fn(() => Promise.resolve("http://signed-url")),
@@ -185,7 +215,8 @@ describe("Customer detail page", () => {
         creditDate: "",
         invoiceUrl: ""
       };
-      return () => h("div", attrs, slots.default?.({ row: defaultRow, column: {} }));
+      return () =>
+        h("div", attrs, slots.default?.({ row: defaultRow, column: {} }));
     }
   });
 
@@ -244,7 +275,10 @@ describe("Customer detail page", () => {
     expect(vm.totalCredits).toBe(2000);
     expect(vm.initialDebt).toBe(2000);
     // 应包含付款和挂账两类
-    expect(vm.transactionRecords.map(r => r.type).sort()).toEqual(["credit", "payment"]);
+    expect(vm.transactionRecords.map(r => r.type).sort()).toEqual([
+      "credit",
+      "payment"
+    ]);
   });
 
   it("navigates back to list", async () => {

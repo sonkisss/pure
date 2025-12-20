@@ -496,8 +496,10 @@ export const getInvoicePublicUrl = async (
   options?: { inline?: boolean; fileName?: string }
 ) => {
   try {
-    const { data, error } =
-      await invoicesRepository.getInvoicePublicUrl(filePath, options);
+    const { data, error } = await invoicesRepository.getInvoicePublicUrl(
+      filePath,
+      options
+    );
     if (error) {
       console.error("获取发票URL失败:", error);
       throw error;

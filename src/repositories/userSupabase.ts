@@ -65,10 +65,10 @@ export const login = async (form: LoginForm): Promise<LoginResponse> => {
     // 1. 优先检查硬编码的预设用户（兼容旧的 bcrypt 哈希）
     // 管理员账号 admin/admin123
     let isValidPassword =
-      (userData.username === 'admin' && form.password === 'admin123') ||
-      (userData.username === '15904723039' && form.password === '123456') ||
-      (userData.username === '15335509998' && form.password === '123456') ||
-      (userData.username === '15354909898' && form.password === '123456');
+      (userData.username === "admin" && form.password === "admin123") ||
+      (userData.username === "15904723039" && form.password === "123456") ||
+      (userData.username === "15335509998" && form.password === "123456") ||
+      (userData.username === "15354909898" && form.password === "123456");
 
     // 2. 如果硬编码检查失败，尝试验证数据库中的哈希（兼容新创建/修改密码的用户）
     // 新用户使用简单的 base64(password + ":salt") 哈希
@@ -76,8 +76,11 @@ export const login = async (form: LoginForm): Promise<LoginResponse> => {
       // 优先尝试 bcrypt 验证（兼容旧数据）
       if (userData.password_hash.startsWith("$2")) {
         const bcrypt = await import("bcryptjs");
-        isValidPassword = bcrypt.compareSync(form.password, userData.password_hash);
-      } 
+        isValidPassword = bcrypt.compareSync(
+          form.password,
+          userData.password_hash
+        );
+      }
       // 其次尝试 Base64 验证（兼容新数据）
       else {
         const inputHash = btoa(form.password + ":salt");

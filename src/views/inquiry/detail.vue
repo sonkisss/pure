@@ -946,11 +946,7 @@ const getAttachmentIcon = (fileType: string) => {
   const t = fileType || "";
   if (t.startsWith("image/")) return Picture;
   if (t === "application/pdf") return Document;
-  if (
-    t.includes("excel") ||
-    t.includes("spreadsheet") ||
-    t.includes("sheet")
-  )
+  if (t.includes("excel") || t.includes("spreadsheet") || t.includes("sheet"))
     return DocumentCopy;
   return Files;
 };
@@ -2261,11 +2257,7 @@ onMounted(() => {
           >
             <div class="attachment-icon">
               <el-tooltip :content="attachment.fileType || '附件'">
-                <el-icon
-                  :size="36"
-                  color="#409EFF"
-                  class="cursor-pointer"
-                >
+                <el-icon :size="36" color="#409EFF" class="cursor-pointer">
                   <component
                     :is="getAttachmentIcon(resolveAttachmentType(attachment))"
                   />

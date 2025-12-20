@@ -55,8 +55,24 @@ vi.mock("@/api/expense", () => ({
       success: true,
       data: {
         list: [
-          { id: 1, title: "费用1", amount: 100, year: 2024, category: "差旅", companyName: "公司A", expenseDate: "2024-01-01" },
-          { id: 2, title: "费用2", amount: 200, year: 2024, category: "办公", companyName: "公司B", expenseDate: "2024-02-01" }
+          {
+            id: 1,
+            title: "费用1",
+            amount: 100,
+            year: 2024,
+            category: "差旅",
+            companyName: "公司A",
+            expenseDate: "2024-01-01"
+          },
+          {
+            id: 2,
+            title: "费用2",
+            amount: 200,
+            year: 2024,
+            category: "办公",
+            companyName: "公司B",
+            expenseDate: "2024-02-01"
+          }
         ],
         total: 2
       }
@@ -65,7 +81,9 @@ vi.mock("@/api/expense", () => ({
   addExpense: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
   updateExpense: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
   deleteExpense: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  batchDeleteExpense: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
+  batchDeleteExpense: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
   getExpenseCategories: vi.fn(() =>
     Promise.resolve({ success: true, data: [{ id: 1, name: "差旅" }] })
   ),
@@ -77,7 +95,9 @@ vi.mock("@/api/expense", () => ({
       success: true,
       data: {
         totalExpenses: 300,
-        companyStatistics: [{ companyId: 1, companyName: "公司A", totalExpense: 100 }]
+        companyStatistics: [
+          { companyId: 1, companyName: "公司A", totalExpense: 100 }
+        ]
       }
     })
   ),
@@ -88,7 +108,10 @@ vi.mock("@/api/expense", () => ({
     })
   ),
   getPayerList: vi.fn(() =>
-    Promise.resolve({ success: true, data: [{ id: 9, nickname: "张三", username: "zs" }] })
+    Promise.resolve({
+      success: true,
+      data: [{ id: 9, nickname: "张三", username: "zs" }]
+    })
   )
 }));
 
@@ -112,7 +135,12 @@ vi.mock("@/utils/excelExporter", () => ({
 vi.mock("xlsx", () => ({}));
 
 vi.mock("element-plus", () => {
-  const ElMessage = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
+  const ElMessage = {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn()
+  };
   const ElMessageBox = { confirm: vi.fn(() => Promise.resolve()) };
   const base = stubComponent();
   const form = formStub();
@@ -120,7 +148,13 @@ vi.mock("element-plus", () => {
   const column = defineComponent({
     name: "ElTableColumnStub",
     setup(_, { slots, attrs }) {
-      const row = { id: 0, title: "", amount: 0, companyName: "", category: "" };
+      const row = {
+        id: 0,
+        title: "",
+        amount: 0,
+        companyName: "",
+        category: ""
+      };
       return () => h("div", attrs, slots.default?.({ row }));
     }
   });
@@ -169,7 +203,13 @@ describe("Expense management page", () => {
   const column = defineComponent({
     name: "ElTableColumnStub",
     setup(_, { slots, attrs }) {
-      const row = { id: 0, title: "", amount: 0, companyName: "", category: "" };
+      const row = {
+        id: 0,
+        title: "",
+        amount: 0,
+        companyName: "",
+        category: ""
+      };
       return () => h("div", attrs, slots.default?.({ row }));
     }
   });
@@ -248,7 +288,11 @@ describe("Expense management page", () => {
 
   it("opens add dialog", async () => {
     const wrapper = mount(ExpensePage, mountOptions);
-    const vm = wrapper.vm as unknown as { dialogVisible: boolean; handleAdd: () => void; dialogTitle: string };
+    const vm = wrapper.vm as unknown as {
+      dialogVisible: boolean;
+      handleAdd: () => void;
+      dialogTitle: string;
+    };
     vm.dialogVisible = false;
     vm.dialogTitle = "";
     vm.handleAdd();

@@ -4,7 +4,8 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
   // 允许前端携带 Supabase 默认的认证头，否则预检会被 CORS 拦截
-  "Access-Control-Allow-Headers": "authorization,apikey,content-type,x-client-info"
+  "Access-Control-Allow-Headers":
+    "authorization,apikey,content-type,x-client-info"
 };
 
 const percentEncode = (value: string) =>
@@ -25,7 +26,11 @@ const hmacSha1 = async (data: string, key: string) => {
     false,
     ["sign"]
   );
-  const signature = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(data));
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    cryptoKey,
+    encoder.encode(data)
+  );
   return base64Encode(signature);
 };
 
@@ -33,11 +38,14 @@ const buildAssumeRoleUrl = async () => {
   const accessKeyId = Deno.env.get("OSS_ACCESS_KEY_ID");
   const accessKeySecret = Deno.env.get("OSS_ACCESS_KEY_SECRET");
   const roleArn = Deno.env.get("OSS_ROLE_ARN");
-  const roleSessionName = Deno.env.get("OSS_ROLE_SESSION_NAME") ?? "supabase-session";
+  const roleSessionName =
+    Deno.env.get("OSS_ROLE_SESSION_NAME") ?? "supabase-session";
   const durationSeconds = Number(Deno.env.get("OSS_STS_DURATION") ?? "3600");
 
   if (!accessKeyId || !accessKeySecret || !roleArn) {
-    throw new Error("Missing OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET / OSS_ROLE_ARN");
+    throw new Error(
+      "Missing OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET / OSS_ROLE_ARN"
+    );
   }
 
   const params: Record<string, string | number> = {
@@ -93,7 +101,9 @@ serve(async req => {
     const url = await buildAssumeRoleUrl();
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`STS request failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `STS request failed: ${response.status} ${response.statusText}`
+      );
     }
     const data = await response.json();
     const credentials = data?.Credentials;
@@ -123,8 +133,13 @@ serve(async req => {
     );
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error"
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      }
     );
   }
 });

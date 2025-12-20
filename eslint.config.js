@@ -1,5 +1,6 @@
 import js from "@eslint/js";
-import tseslint from "typescript-eslint";
+import tsPlugin from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
 import pluginVue from "eslint-plugin-vue";
 import * as parserVue from "vue-eslint-parser";
 import configPrettier from "eslint-config-prettier";
@@ -72,10 +73,16 @@ export default defineConfig([
       ]
     }
   },
-  ...tseslint.config({
-    extends: [...tseslint.configs.recommended],
+  {
     files: ["**/*.?([cm])ts", "**/*.?([cm])tsx"],
+    languageOptions: {
+      parser: tsParser
+    },
+    plugins: {
+      "@typescript-eslint": tsPlugin
+    },
     rules: {
+      ...tsPlugin.configs.recommended.rules,
       "@typescript-eslint/no-redeclare": "error",
       "@typescript-eslint/ban-ts-comment": "off",
       "@typescript-eslint/no-explicit-any": "off",
@@ -103,7 +110,7 @@ export default defineConfig([
         }
       ]
     }
-  }),
+  },
   {
     files: ["**/*.d.ts"],
     rules: {
@@ -137,12 +144,12 @@ export default defineConfig([
           jsx: true
         },
         extraFileExtensions: [".vue"],
-        parser: tseslint.parser,
+        parser: tsParser,
         sourceType: "module"
       }
     },
     plugins: {
-      "@typescript-eslint": tseslint.plugin,
+      "@typescript-eslint": tsPlugin,
       vue: pluginVue
     },
     processor: pluginVue.processors[".vue"],

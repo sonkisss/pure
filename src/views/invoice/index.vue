@@ -336,9 +336,7 @@ const resolveInvoiceUrl = async (
     : objectPath;
 
   const fileName =
-    options?.fileName ||
-    normalizedPath.split("/").pop() ||
-    "invoice.pdf";
+    options?.fileName || normalizedPath.split("/").pop() || "invoice.pdf";
 
   const { data, error } = await getInvoicePublicUrl(normalizedPath, {
     inline: options?.inline ?? true,
@@ -380,7 +378,10 @@ const extractInvoicePathForSave = (value?: string | null) => {
     } catch {
       // keep normalized
     }
-  } else if (normalized.startsWith("http") && normalized.includes("aliyuncs.com")) {
+  } else if (
+    normalized.startsWith("http") &&
+    normalized.includes("aliyuncs.com")
+  ) {
     // 处理 OSS 链接（带或不带签名）
     try {
       const urlObj = new URL(normalized);
@@ -424,7 +425,8 @@ const loadInvoiceData = async () => {
             invoiceFile:
               invoice.invoice_file_name && resolvedUrl
                 ? {
-                    name: invoice.original_file_name || invoice.invoice_file_name,
+                    name:
+                      invoice.original_file_name || invoice.invoice_file_name,
                     url: resolvedUrl
                   }
                 : null,
@@ -456,7 +458,8 @@ const loadInvoiceData = async () => {
             invoiceFile:
               invoice.invoice_file_name && resolvedUrl
                 ? {
-                    name: invoice.original_file_name || invoice.invoice_file_name,
+                    name:
+                      invoice.original_file_name || invoice.invoice_file_name,
                     url: resolvedUrl
                   }
                 : null,
@@ -1620,9 +1623,8 @@ const handleInvoiceUploadInDialog = async (
     }
 
     // 获取签名URL（不再回退公共/原链接）
-    const { data: urlData, error: urlErr } = await getInvoicePublicUrl(
-      fileName
-    );
+    const { data: urlData, error: urlErr } =
+      await getInvoicePublicUrl(fileName);
     if (urlErr || !urlData?.signedUrl) {
       throw urlErr || new Error("发票签名URL生成失败");
     }
@@ -1900,8 +1902,7 @@ const saveEdit = async () => {
             invoiceUrl: resolvedUrl,
             invoicePath: data.invoice_url,
             invoiceFile:
-              data.invoice_file_name &&
-              resolvedUrl
+              data.invoice_file_name && resolvedUrl
                 ? {
                     name: data.original_file_name || data.invoice_file_name,
                     url: resolvedUrl
@@ -1957,8 +1958,7 @@ const saveEdit = async () => {
               invoiceUrl: resolvedUrl,
               invoicePath: data.invoice_url,
               invoiceFile:
-                data.invoice_file_name &&
-                resolvedUrl
+                data.invoice_file_name && resolvedUrl
                   ? {
                       name: data.original_file_name || data.invoice_file_name,
                       url: resolvedUrl
@@ -2013,8 +2013,7 @@ const saveEdit = async () => {
             invoiceUrl: resolvedUrl,
             invoicePath: data.invoice_url,
             invoiceFile:
-              data.invoice_file_name &&
-              resolvedUrl
+              data.invoice_file_name && resolvedUrl
                 ? {
                     name: data.original_file_name || data.invoice_file_name,
                     url: resolvedUrl
@@ -2463,7 +2462,6 @@ onMounted(() => {
                   :inactive-value="false"
                   :disabled="row.invoiceFile && row.invoiceIssued"
                   style="
-
                     --el-switch-on-color: #67c23a;
                     --el-switch-off-color: #dcdfe6;
                   "

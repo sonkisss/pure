@@ -63,17 +63,45 @@ vi.mock("@/api/product", () => ({
       success: true,
       data: {
         list: [
-          { id: 1, name: "产品1", specification: "S1", unit: "个", price: 100, supplier: "供应商A", taxType: "含税", remark: "http://example.com" },
-          { id: 2, name: "产品2", specification: "S2", unit: "箱", price: 50, supplier: "供应商B", taxType: "普票", remark: "" }
+          {
+            id: 1,
+            name: "产品1",
+            specification: "S1",
+            unit: "个",
+            price: 100,
+            supplier: "供应商A",
+            taxType: "含税",
+            remark: "http://example.com"
+          },
+          {
+            id: 2,
+            name: "产品2",
+            specification: "S2",
+            unit: "箱",
+            price: 50,
+            supplier: "供应商B",
+            taxType: "普票",
+            remark: ""
+          }
         ],
         total: 2
       }
     })
   ),
   addProduct: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deleteProduct: vi.fn(() => Promise.resolve({ success: true, message: "deleted" })),
-  batchDeleteProduct: vi.fn(() => Promise.resolve({ success: true, message: "batch" })),
-  batchAddProducts: vi.fn(() => Promise.resolve({ success: true, message: "batch add", data: { failed: [] } }))
+  deleteProduct: vi.fn(() =>
+    Promise.resolve({ success: true, message: "deleted" })
+  ),
+  batchDeleteProduct: vi.fn(() =>
+    Promise.resolve({ success: true, message: "batch" })
+  ),
+  batchAddProducts: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      message: "batch add",
+      data: { failed: [] }
+    })
+  )
 }));
 
 vi.mock("@/utils/productCache", () => ({
@@ -97,12 +125,20 @@ vi.mock("element-plus", () => {
   const column = defineComponent({
     name: "ElTableColumnStub",
     setup(_, { slots, attrs }) {
-      const row = { id: 0, name: "", specification: "", unit: "", price: 0, supplier: "", taxType: "", remark: "" };
+      const row = {
+        id: 0,
+        name: "",
+        specification: "",
+        unit: "",
+        price: 0,
+        supplier: "",
+        taxType: "",
+        remark: ""
+      };
       return () => h("div", attrs, slots.default?.({ row }));
     }
   });
   const upload = stubComponent("ElUpload");
-  const datePicker = stubComponent("ElDatePicker");
   const tag = stubComponent("ElTag");
   const alert = stubComponent("ElAlert");
   return {
@@ -136,12 +172,20 @@ describe("Product management page", () => {
   const column = defineComponent({
     name: "ElTableColumnStub",
     setup(_, { slots, attrs }) {
-      const row = { id: 0, name: "", specification: "", unit: "", price: 0, supplier: "", taxType: "", remark: "" };
+      const row = {
+        id: 0,
+        name: "",
+        specification: "",
+        unit: "",
+        price: 0,
+        supplier: "",
+        taxType: "",
+        remark: ""
+      };
       return () => h("div", attrs, slots.default?.({ row }));
     }
   });
   const upload = stubComponent("ElUpload");
-  const datePicker = stubComponent("ElDatePicker");
   const tag = stubComponent("ElTag");
   const alert = stubComponent("ElAlert");
 
@@ -198,7 +242,11 @@ describe("Product management page", () => {
 
   it("opens dialog when adding product", async () => {
     const wrapper = mount(ProductPage, mountOptions);
-    const vm = wrapper.vm as unknown as { dialogVisible: boolean; dialogTitle: string; handleAdd: () => void };
+    const vm = wrapper.vm as unknown as {
+      dialogVisible: boolean;
+      dialogTitle: string;
+      handleAdd: () => void;
+    };
     vm.dialogVisible = false;
     vm.dialogTitle = "";
     vm.handleAdd();

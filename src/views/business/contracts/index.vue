@@ -468,9 +468,7 @@ const fileList = ref<UploadFile[]>([]);
 
 const searchForm = reactive({
   company_id: undefined as number | undefined,
-  contract_year: new Date().getFullYear() as
-    | number
-    | undefined // 默认使用当前农历年度
+  contract_year: new Date().getFullYear() as number | undefined // 默认使用当前农历年度
 });
 
 const pagination = reactive({

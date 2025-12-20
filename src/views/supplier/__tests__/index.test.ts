@@ -60,9 +60,15 @@ vi.mock("@/api/supplier", () => ({
     })
   ),
   addSupplier: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deleteSupplier: vi.fn(() => Promise.resolve({ success: true, message: "deleted" })),
-  batchDeleteSupplier: vi.fn(() => Promise.resolve({ success: true, message: "batch deleted" })),
-  updateSupplier: vi.fn(() => Promise.resolve({ success: true, message: "updated" }))
+  deleteSupplier: vi.fn(() =>
+    Promise.resolve({ success: true, message: "deleted" })
+  ),
+  batchDeleteSupplier: vi.fn(() =>
+    Promise.resolve({ success: true, message: "batch deleted" })
+  ),
+  updateSupplier: vi.fn(() =>
+    Promise.resolve({ success: true, message: "updated" })
+  )
 }));
 
 vi.mock("element-plus", () => {
@@ -155,14 +161,20 @@ describe("Supplier list page", () => {
   it("navigates to detail when clicking name", async () => {
     const wrapper = mount(SupplierList, mountOptions);
     await flushPromises();
-    const vm = wrapper.vm as unknown as { handleViewDetail: (row: any) => void };
+    const vm = wrapper.vm as unknown as {
+      handleViewDetail: (row: any) => void;
+    };
     vm.handleViewDetail({ id: 9 } as any);
     expect(routerPush).toHaveBeenCalledWith("/supplier/detail/9");
   });
 
   it("opens add dialog", async () => {
     const wrapper = mount(SupplierList, mountOptions);
-    const vm = wrapper.vm as unknown as { dialogVisible: boolean; handleAdd: () => void; dialogTitle: string };
+    const vm = wrapper.vm as unknown as {
+      dialogVisible: boolean;
+      handleAdd: () => void;
+      dialogTitle: string;
+    };
     vm.dialogVisible = false;
     vm.handleAdd();
     expect(vm.dialogVisible).toBe(true);

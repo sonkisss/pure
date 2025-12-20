@@ -257,7 +257,7 @@ const deleteCustomerSupabase = async (id: number): Promise<OperationResult> => {
           } else {
             filePath = extractFilePathFromUrl(record.invoice_url);
           }
-        } catch (error) {
+        } catch {
           filePath = extractFilePathFromUrl(record.invoice_url);
         }
 
@@ -804,13 +804,11 @@ const deleteCreditRecordSupabase = async (
       ) {
         const fileInfo = JSON.parse(credit.data.invoice_url);
         filePath =
-          fileInfo.filePath ||
-          extractFilePathFromUrl(fileInfo.fileUrl) ||
-          null;
+          fileInfo.filePath || extractFilePathFromUrl(fileInfo.fileUrl) || null;
       } else {
         filePath = extractFilePathFromUrl(credit.data.invoice_url);
       }
-    } catch (error) {
+    } catch {
       filePath = extractFilePathFromUrl(credit.data.invoice_url);
     }
   }

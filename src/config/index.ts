@@ -31,9 +31,7 @@ const getConfig = (key?: string): PlatformConfigs => {
 };
 
 /** 获取项目动态全局配置 */
-export const getPlatformConfig = async (
-  app: App
-): Promise<PlatformConfigs> => {
+export const getPlatformConfig = async (app: App): Promise<PlatformConfigs> => {
   app.config.globalProperties.$config = getConfig();
   return axios({
     method: "get",

@@ -77,7 +77,14 @@ vi.mock("@/api/supplier", () => ({
     Promise.resolve({
       success: true,
       data: {
-        list: [{ id: 10, amount: 500, paymentTime: "2024-03-01", paymentType: "现金" }],
+        list: [
+          {
+            id: 10,
+            amount: 500,
+            paymentTime: "2024-03-01",
+            paymentType: "现金"
+          }
+        ],
         totalDebt: 1000,
         totalPaid: 500,
         total: 1
@@ -220,7 +227,11 @@ describe("Supplier detail page", () => {
       supplier: { name: string } | null;
       debts: Array<any>;
       payments: Array<any>;
-      statistics: { totalDebtAmount: number; paidAmount: number; currentDebt: number };
+      statistics: {
+        totalDebtAmount: number;
+        paidAmount: number;
+        currentDebt: number;
+      };
     };
 
     expect(vm.supplier?.name).toBe("供应商X");

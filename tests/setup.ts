@@ -9,7 +9,6 @@ config.global.stubs = {
 
 // 一些环境可能没有 structuredClone
 if (typeof globalThis.structuredClone !== "function") {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (globalThis as any).structuredClone = (val: any) =>
     JSON.parse(JSON.stringify(val));
 }

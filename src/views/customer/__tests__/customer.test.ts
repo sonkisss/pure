@@ -8,7 +8,12 @@ function createElStub() {
   return defineComponent({
     name: "ElStub",
     setup(_, { slots, attrs }) {
-      return () => h("div", attrs, [slots.header?.(), slots.default?.(), slots.footer?.()]);
+      return () =>
+        h("div", attrs, [
+          slots.header?.(),
+          slots.default?.(),
+          slots.footer?.()
+        ]);
     }
   });
 }
@@ -28,7 +33,11 @@ function createFormStub() {
 const routerPush = vi.fn();
 
 vi.mock("vue-router", () => ({
-  useRouter: () => ({ push: routerPush, afterEach: () => undefined, options: { history: { state: {} } } })
+  useRouter: () => ({
+    push: routerPush,
+    afterEach: () => undefined,
+    options: { history: { state: {} } }
+  })
 }));
 
 vi.mock("@element-plus/icons-vue", () => {
@@ -93,17 +102,35 @@ vi.mock("@/api/customer", () => ({
       success: true,
       data: {
         list: [
-          { id: 1, name: "客户A", debt: 1000, companyId: 1, companyName: "公司1" },
-          { id: 2, name: "客户B", debt: 200, companyId: 2, companyName: "公司2" }
+          {
+            id: 1,
+            name: "客户A",
+            debt: 1000,
+            companyId: 1,
+            companyName: "公司1"
+          },
+          {
+            id: 2,
+            name: "客户B",
+            debt: 200,
+            companyId: 2,
+            companyName: "公司2"
+          }
         ],
         total: 2
       }
     })
   ),
   addCustomer: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  deleteCustomer: vi.fn(() => Promise.resolve({ success: true, message: "deleted" })),
-  batchDeleteCustomer: vi.fn(() => Promise.resolve({ success: true, message: "batch deleted" })),
-  updateCustomer: vi.fn(() => Promise.resolve({ success: true, message: "updated" })),
+  deleteCustomer: vi.fn(() =>
+    Promise.resolve({ success: true, message: "deleted" })
+  ),
+  batchDeleteCustomer: vi.fn(() =>
+    Promise.resolve({ success: true, message: "batch deleted" })
+  ),
+  updateCustomer: vi.fn(() =>
+    Promise.resolve({ success: true, message: "updated" })
+  ),
   checkCustomerRecords: vi.fn()
 }));
 
@@ -184,14 +211,20 @@ describe("Customer management page", () => {
     await vi.runAllTimersAsync();
     await flushPromises();
 
-    const vm = wrapper.vm as unknown as { handleGoToDetail: (id: number) => void };
+    const vm = wrapper.vm as unknown as {
+      handleGoToDetail: (id: number) => void;
+    };
     vm.handleGoToDetail(3);
     expect(routerPush).toHaveBeenCalledWith("/customer/detail/3");
   });
 
   it("opens add dialog via handleAdd", async () => {
     const wrapper = mount(CustomerPage, mountOptions);
-    const vm = wrapper.vm as unknown as { dialogVisible: boolean; dialogTitle: string; handleAdd: () => void };
+    const vm = wrapper.vm as unknown as {
+      dialogVisible: boolean;
+      dialogTitle: string;
+      handleAdd: () => void;
+    };
 
     vm.handleAdd();
     expect(vm.dialogVisible).toBe(true);

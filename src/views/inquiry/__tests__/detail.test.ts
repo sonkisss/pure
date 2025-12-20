@@ -76,8 +76,22 @@ vi.mock("@/api/inquiry", () => ({
         name: "询价单X",
         attachments: [],
         items: [
-          { id: 1, productName: "品1", quantity: 2, purchasePrice: 100, salePrice: 150, taxType: "含税" },
-          { id: 2, productName: "品2", quantity: 1, purchasePrice: 50, salePrice: 80, taxType: "不含税" }
+          {
+            id: 1,
+            productName: "品1",
+            quantity: 2,
+            purchasePrice: 100,
+            salePrice: 150,
+            taxType: "含税"
+          },
+          {
+            id: 2,
+            productName: "品2",
+            quantity: 1,
+            purchasePrice: 50,
+            salePrice: 80,
+            taxType: "不含税"
+          }
         ]
       }
     })
@@ -91,17 +105,23 @@ vi.mock("@/api/inquiry", () => ({
   updateInquiryItem: vi.fn(() => Promise.resolve({ success: true })),
   getMatchedProducts: vi.fn(() => Promise.resolve({ success: true, data: [] })),
   saveProfitCalculation: vi.fn(),
-  getProfitCalculation: vi.fn(() => Promise.resolve({ success: true, data: null })),
+  getProfitCalculation: vi.fn(() =>
+    Promise.resolve({ success: true, data: null })
+  ),
   saveCustomFees: vi.fn(),
   deleteInquiryItems: vi.fn(() => Promise.resolve({ success: true }))
 }));
 
 vi.mock("@/api/product", () => ({
-  getProductList: vi.fn(() => Promise.resolve({ success: true, data: { list: [] } }))
+  getProductList: vi.fn(() =>
+    Promise.resolve({ success: true, data: { list: [] } })
+  )
 }));
 
 vi.mock("@/api/business", () => ({
-  oneClickProductSelection: vi.fn(() => Promise.resolve({ success: true, data: [] }))
+  oneClickProductSelection: vi.fn(() =>
+    Promise.resolve({ success: true, data: [] })
+  )
 }));
 
 vi.mock("@/services/storage", () => ({
@@ -118,7 +138,12 @@ vi.mock("@/utils/excelParser", () => ({
 vi.mock("xlsx", () => ({}));
 
 vi.mock("element-plus", () => {
-  const ElMessage = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
+  const ElMessage = {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn()
+  };
   const ElMessageBox = { confirm: vi.fn(() => Promise.resolve()) };
   const base = stubComponent();
   const form = formStub();
@@ -126,7 +151,14 @@ vi.mock("element-plus", () => {
   const column = defineComponent({
     name: "ElTableColumnStub",
     setup(_, { slots, attrs }) {
-      const row = { id: 0, productName: "", quantity: 0, purchasePrice: 0, salePrice: 0, taxType: "含税" };
+      const row = {
+        id: 0,
+        productName: "",
+        quantity: 0,
+        purchasePrice: 0,
+        salePrice: 0,
+        taxType: "含税"
+      };
       return () => h("div", attrs, slots.default?.({ row, $index: 0 }));
     }
   });
@@ -185,7 +217,14 @@ describe("Inquiry detail page", () => {
   const column = defineComponent({
     name: "ElTableColumnStub",
     setup(_, { slots, attrs }) {
-      const row = { id: 0, productName: "", quantity: 0, purchasePrice: 0, salePrice: 0, taxType: "含税" };
+      const row = {
+        id: 0,
+        productName: "",
+        quantity: 0,
+        purchasePrice: 0,
+        salePrice: 0,
+        taxType: "含税"
+      };
       return () => h("div", attrs, slots.default?.({ row, $index: 0 }));
     }
   });

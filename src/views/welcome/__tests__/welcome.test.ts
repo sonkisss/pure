@@ -7,7 +7,12 @@ function createElStub() {
   return defineComponent({
     name: "ElStub",
     setup(_, { slots, attrs }) {
-      return () => h("div", attrs, [slots.header?.(), slots.default?.(), slots.footer?.()]);
+      return () =>
+        h("div", attrs, [
+          slots.header?.(),
+          slots.default?.(),
+          slots.footer?.()
+        ]);
     }
   });
 }
@@ -127,7 +132,9 @@ vi.mock("@/api/expense", () => ({
       success: true,
       data: {
         totalExpenses: 120000,
-        categoryStatistics: [{ category: "差旅", amount: 20000, percentage: 20 }]
+        categoryStatistics: [
+          { category: "差旅", amount: 20000, percentage: 20 }
+        ]
       }
     })
   )
@@ -220,7 +227,9 @@ describe("Welcome page", () => {
     await vi.runAllTimersAsync();
     await flushPromises();
 
-    const values = wrapper.findAll(".top-stat-card .card-value").map(node => node.text());
+    const values = wrapper
+      .findAll(".top-stat-card .card-value")
+      .map(node => node.text());
 
     expect(values[0]).toContain("¥ 123,456");
     expect(values[1]).toContain("¥ 98,765");
@@ -236,7 +245,9 @@ describe("Welcome page", () => {
     await vi.runAllTimersAsync();
     await flushPromises();
 
-    const navLink = wrapper.findAll("span").find(node => node.text().includes("全部客户"));
+    const navLink = wrapper
+      .findAll("span")
+      .find(node => node.text().includes("全部客户"));
     expect(navLink).toBeTruthy();
 
     await navLink?.trigger("click");

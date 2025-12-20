@@ -120,7 +120,12 @@
   },
   "pnpm": {
     "peerDependencyRules": {
-      "ignoreMissing": ["@babel/core", "@babel/preset-env", "@babel/preset-react", "@babel/preset-typescript"]
+      "ignoreMissing": [
+        "@babel/core",
+        "@babel/preset-env",
+        "@babel/preset-react",
+        "@babel/preset-typescript"
+      ]
     }
   },
   "repository": {
@@ -144,9 +149,7 @@
   ],
   "license": "MIT",
   "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --cache --max-warnings 0 --fix"
-    ],
+    "*.{js,jsx,ts,tsx}": ["eslint --cache --max-warnings 0 --fix"],
     "{!(package)*.json,*.code-snippets,.!({browserslist,npm,nvm})*rc}": [
       "prettier --cache --write"
     ],
@@ -158,8 +161,6 @@
       "stylelint --cache --fix",
       "prettier --cache --write"
     ],
-    "*.md": [
-      "prettier --cache --write"
-    ]
+    "*.md": ["prettier --cache --write"]
   }
 }

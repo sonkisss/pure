@@ -224,7 +224,7 @@
               class="credit-dot"
               :class="row.is_credited ? 'credit-dot--yes' : 'credit-dot--no'"
               :title="row.is_credited ? '已挂账' : '未挂账'"
-            ></span>
+            />
           </template>
         </el-table-column>
         <el-table-column

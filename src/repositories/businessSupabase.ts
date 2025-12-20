@@ -1685,7 +1685,7 @@ export const deleteContractAttachmentSupabase = async (id: number) => {
         if (objectPath.includes("?")) {
           objectPath = objectPath.split("?")[0];
         }
-      } catch (err) {
+      } catch {
         objectPath = rawUrl.split("?")[0];
       }
     }

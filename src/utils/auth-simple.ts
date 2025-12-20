@@ -1,7 +1,7 @@
-import CryptoJS from 'crypto-js';
+import CryptoJS from "crypto-js";
 
 // 使用更简单的token方案 - 基于HMAC签名
-const AUTH_KEY = import.meta.env.VITE_JWT_SECRET || 'default-secret-change-me';
+const AUTH_KEY = import.meta.env.VITE_JWT_SECRET || "default-secret-change-me";
 
 export interface AuthPayload {
   userId: number;
@@ -15,7 +15,9 @@ export interface AuthPayload {
 /**
  * 生成安全的token - 使用HMAC签名
  */
-export const generateToken = (payload: Omit<AuthPayload, 'timestamp'>): string => {
+export const generateToken = (
+  payload: Omit<AuthPayload, "timestamp">
+): string => {
   const dataWithTimestamp: AuthPayload = {
     ...payload,
     timestamp: Date.now()
@@ -36,17 +38,17 @@ export const generateToken = (payload: Omit<AuthPayload, 'timestamp'>): string =
  */
 export const verifyToken = (token: string): AuthPayload => {
   try {
-    const [data, signature] = token.split('.');
+    const [data, signature] = token.split(".");
 
     // 验证格式
     if (!data || !signature) {
-      throw new Error('无效的token格式');
+      throw new Error("无效的token格式");
     }
 
     // 验证签名
     const expectedSignature = CryptoJS.HmacSHA256(data, AUTH_KEY).toString();
     if (signature !== expectedSignature) {
-      throw new Error('token签名验证失败');
+      throw new Error("token签名验证失败");
     }
 
     // 解码数据
@@ -58,19 +60,21 @@ export const verifyToken = (token: string): AuthPayload => {
     const maxAge = 24 * 60 * 60 * 1000; // 24小时
 
     if (tokenAge > maxAge) {
-      throw new Error('token已过期');
+      throw new Error("token已过期");
     }
 
     return payload;
   } catch {
-    throw new Error('无效的token');
+    throw new Error("无效的token");
   }
 };
 
 /**
  * 生成刷新token（有效期更长）
  */
-export const generateRefreshToken = (payload: Omit<AuthPayload, 'timestamp'>): string => {
+export const generateRefreshToken = (
+  payload: Omit<AuthPayload, "timestamp">
+): string => {
   const dataWithTimestamp: AuthPayload = {
     ...payload,
     timestamp: Date.now() - (Date.now() % 86400000) // 按天对齐
@@ -87,15 +91,18 @@ export const generateRefreshToken = (payload: Omit<AuthPayload, 'timestamp'>): s
  */
 export const verifyRefreshToken = (token: string): AuthPayload => {
   try {
-    const [data, signature] = token.split('.');
+    const [data, signature] = token.split(".");
 
     if (!data || !signature) {
-      throw new Error('无效的刷新token格式');
+      throw new Error("无效的刷新token格式");
     }
 
-    const expectedSignature = CryptoJS.HmacSHA256(`${data}_refresh`, AUTH_KEY).toString();
+    const expectedSignature = CryptoJS.HmacSHA256(
+      `${data}_refresh`,
+      AUTH_KEY
+    ).toString();
     if (signature !== expectedSignature) {
-      throw new Error('刷新token签名验证失败');
+      throw new Error("刷新token签名验证失败");
     }
 
     const payload = JSON.parse(atob(data)) as AuthPayload;
@@ -106,11 +113,11 @@ export const verifyRefreshToken = (token: string): AuthPayload => {
     const maxAge = 7 * 24 * 60 * 60 * 1000; // 7天
 
     if (tokenAge > maxAge) {
-      throw new Error('刷新token已过期');
+      throw new Error("刷新token已过期");
     }
 
     return payload;
   } catch {
-    throw new Error('无效的刷新token');
+    throw new Error("无效的刷新token");
   }
 };

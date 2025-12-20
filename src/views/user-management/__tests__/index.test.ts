@@ -87,8 +87,12 @@ vi.mock("@/api/user", () => ({
   createUserApi: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
   updateUserApi: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
   deleteUserApi: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  batchDeleteUsersApi: vi.fn(() => Promise.resolve({ success: true, message: "ok" })),
-  toggleUserStatusApi: vi.fn(() => Promise.resolve({ success: true, message: "ok" }))
+  batchDeleteUsersApi: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  ),
+  toggleUserStatusApi: vi.fn(() =>
+    Promise.resolve({ success: true, message: "ok" })
+  )
 }));
 
 vi.mock("element-plus", () => {
@@ -226,7 +230,11 @@ describe("User management page", () => {
 
   it("opens add dialog", async () => {
     const wrapper = mount(UserManagement, mountOptions);
-    const vm = wrapper.vm as unknown as { dialogVisible: boolean; dialogType: string; handleAdd: () => void };
+    const vm = wrapper.vm as unknown as {
+      dialogVisible: boolean;
+      dialogType: string;
+      handleAdd: () => void;
+    };
     vm.dialogVisible = false;
     vm.dialogType = "";
     vm.handleAdd();

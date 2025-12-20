@@ -16,4 +16,3 @@ if (typeof globalObject.globalThis === "undefined") {
     configurable: true
   });
 }
-

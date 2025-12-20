@@ -14,7 +14,9 @@ if (import.meta.env.PROD) {
 }
 
 if (!url || !anonKey) {
-  throw new Error("Supabase 环境变量缺失，请检查 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY");
+  throw new Error(
+    "Supabase 环境变量缺失，请检查 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY"
+  );
 }
 
 let supabase: SupabaseClient;
